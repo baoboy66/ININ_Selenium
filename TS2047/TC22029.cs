@@ -122,7 +122,7 @@
                                     if (interactions != null && interactions.Count > 0)
                                     {
                                         Interaction.Pickup(interactions[0].InteractionId, Rm.Users[_FORWARDED_USER]);
-                                        return true;
+                                        return interactions[0].IsConnected();
                                     }
                                     return false;
                                 });
@@ -131,7 +131,6 @@
                             // Make sure it's connected on the local end as well
                             TraceTrue(() =>
                             {
-
                                 _interaction = GetInteraction(new Dictionary<string, string>
                                 {
                                     {MyInteractionsView.InteractionAttribute.State.AttributeId, MyInteractionsView.InteractionState._CONNECTED},
@@ -162,28 +161,21 @@
                             //Step 5 Verify: The call appears in TestUser\'s queue.
 
                             // Use _CALLING_USER to call _REMOTE_USER
-                            //WebDriverManager.Instance.SwitchBrowser(Drivers[_CALLING_USER]);
-                            //ClientMain.InitiateCall(userExtensions[_REMOTE_USER]);
-                            //Call.Create(Users.GetExtension(Rm.Users[_REMOTE_USER]), Rm.Users[_CALLING_USER]);
+                           
+                            Call.Create(Users.GetExtension(Rm.Users[_REMOTE_USER]), Rm.Users[_CALLING_USER]);
+
                             // Check if this shows up in _REMOTE_USER's queue
-                            //WebDriverManager.Instance.SwitchBrowser(Drivers[_REMOTE_USER]);
-                            /*_remoteUserInteraction = FilteredQueue.WaitForInteraction(
-                                new Dictionary<string, string>
-                                {
-                                    {InteractionAttribute.State.AttributeId, InteractionState.ALERTING},
-                                    {InteractionAttribute.Name.AttributeId, Rm.Users[_CALLING_USER]}
-                                });
-                            TraceTrue(_remoteUserInteraction != null, "Couldn't get the interaction from the call target's queue");
-                            */
-                            /*TraceTrue(() =>
+
+                            TraceTrue(() =>
                             {
-                                _interaction[_REMOTE_USER] = GetInteraction(new Dictionary<string, string>
+                                _interaction = GetInteraction(new Dictionary<string, string>
                                 {
                                     {MyInteractionsView.InteractionAttribute.State.AttributeId, MyInteractionsView.InteractionState._ALERTING},
+                                    {MyInteractionsView.InteractionAttribute.Name.AttributeId, Rm.Users[_CALLING_USER]}
                                 });
-                                return _interaction[_REMOTE_USER] != null;
+                                return _interaction.State == MyInteractionsView.InteractionState._ALERTING;
                             }, "Couldn't get the interaction from the call target's queue");
-                            */
+                            
                         }
                         #endregion
 
