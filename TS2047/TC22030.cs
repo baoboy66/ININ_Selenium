@@ -2,234 +2,188 @@
 {
     using System;
     using System.Collections.Generic;
-    using ININ.ICWS.Configuration;
-    using ININ.ICWS.Configuration.People;
+    using ININ.ICWS.Test.Common;
     using ININ.Testing.Automation.Core;
     using ININ.Testing.Automation.Core.SeleniumAPI;
     using ININ.Testing.Automation.Core.Utilities;
-    using ININ.Testing.Automation.Lib.Client;
+    using ININ.Testing.Automation.Lib.Client.Queues.MyInteractions;
     using ININ.Testing.Automation.Lib.ResourceManager;
+    using ININ.Testing.Automation.ManagedICWS;
     using ININ.Testing.Automation.ManagedICWS.Configuration.People;
+    using ININ.Testing.Automation.ManagedICWS.Queues;
     using ININ.Testing.Automation.Tcdb;
     using Xunit;
+    using Call = ININ.Testing.Automation.ManagedICWS.Interactions.Call;
+    using Interaction = ININ.Testing.Automation.ManagedICWS.Interactions.Interaction;
 
     /// <summary>
     ///     TC22030 - Persistent Remote Number Login
     /// </summary>
     public class TC22030 : ClientTestCase
     {
-        #region Constructors and Destructors
+        private const int _CALLING_USER = 0;
+        private const int _FORWARDED_USER = 1;
+        private const int _REMOTE_USER = 2;
+        private readonly IList<Session> _callerSessions = new List<Session>(2);
+        private MyInteractionsView.Interaction _interaction;
+        private MyInteractionsView _myInteractionsView;
+
         public TC22030()
         {
-            this.TSNum = "2047";
-            this.TCNum = "22030.3";
+            TSNum = "2047";
+            TCNum = "22030.3";
         }
-        #endregion
 
-        #region  Constants and Fields
-        /// <summary>
-        ///     The user that is making the call to _REMOTE_USER
-        /// </summary>
-        private const int _CALLING_USER = 0;
-
-        /// <summary>
-        ///     The user that is actually receiving the call from _CALLING_USER to _REMOTE_USER
-        /// </summary>
-        private const int _FORWARDED_USER = 1;
-
-        /// <summary>
-        ///     The user that is setup with the remote number
-        /// </summary>
-        private const int _REMOTE_USER = 2;
-
-        /// <summary>
-        ///     The interaction on the _FORWARDED_USER's queue
-        /// </summary>
-        private InteractionRow _forwardedUserInteraction;
-
-        /// <summary>
-        ///     The interaction on the _REMOTE_USER's queue
-        /// </summary>
-        private InteractionRow _remoteUserInteraction;
-
-        /// <summary>
-        ///     The test interaction (outbound) for steps 2-3
-        /// </summary>
-        private InteractionRow _testOutboundInteraction;
-        #endregion
-
-        #region Public Methods and Operators
         public override void Run()
         {
             using (Trace.TestCase.scope())
             {
-                using (this.Rm = ResourceManagerRuntime.AllocateResources(3, 2))
+                using (Rm = ResourceManagerRuntime.AllocateResources(3, 2))
                 {
                     try
                     {
-                        IList<StationLogonSettings> stationSettings = new List<StationLogonSettings>(3);
-                        IList<string> userExtensions = new List<string>(3);
-
                         #region Pre Run Setup
                         using (Trace.TestCase.scope("Pre Run Setup"))
                         {
-                            // Ensure all of the users have the default roles setup
-                            SetUserDefaultRole(this.Rm.Users);
-
-                            // Give the _REMOTE_USER their own client access license (since normally, these are on the station)
-                            var userContract = Users.Get(new UsersResource.GetUserRequestParameters
+                            // Add interaction views for each user
+                            TraceTrue(() =>
                             {
-                                Id = this.Rm.Users[_REMOTE_USER],
-                                Select = "LicenseProperties",
-                                ActualValues = "true"
-                            });
-                            userContract.LicenseProperties = new LicensePropertiesDataContract
-                            {
-                                HasClientAccess = true,
-                                MediaLevel = MediaLevelDataContract.Media3,
-                                MediaTypes =
-                                    new List<MediaTypeDataContract>
-                                    {
-                                        MediaTypeDataContract.Call,
-                                        MediaTypeDataContract.Chat
-                                    },
-                                LicenseActive = true
-                            };
-                            Users.Set(userContract);
+                                // ICWS call(s)
+                                foreach (var user in Rm.Users)
+                                {
+                                    Users.SetRole(user, _DEFAULT_ROLE);
+                                    Status.Set(user, "Available");
+                                }
 
-                            // get a driver for the test.
-                            this.Drivers = WebDriverManager.Instance.AddDriver(this.Rm.Users.Count);
+                                // Get ICWS session(s)
+                                _callerSessions.Insert(_CALLING_USER, GetSession(Rm.Users[_CALLING_USER], Rm.Stations[_CALLING_USER]));
+                                _callerSessions.Insert(_FORWARDED_USER, GetSession(Rm.Users[_FORWARDED_USER], Rm.Stations[_FORWARDED_USER]));
 
-                            // Setup the scenario users
-                            stationSettings.Insert(_CALLING_USER, new StationLogonSettings(_STANDARD_STATION_TYPE, this.Rm.Stations[_CALLING_USER]));
-                            stationSettings.Insert(_FORWARDED_USER, new StationLogonSettings(_STANDARD_STATION_TYPE, this.Rm.Stations[_FORWARDED_USER]));
-
-                            // Get the extensions of the users in the scenario
-                            foreach (var user in this.Rm.Users)
-                            {
-                                userExtensions.Add(Users.Get(
-                                    new UsersResource.GetUserRequestParameters
-                                    {
-                                        Id = user,
-                                        Select = "extension"
-                                    }).Extension);
-                            }
-
-                            stationSettings.Insert(_REMOTE_USER, new StationLogonSettings(StationType.RemoteNumber, userExtensions[_FORWARDED_USER], true));
+                                // Get driver(s)
+                                Drivers = WebDriverManager.Instance.AddDriver(1);
+                                return true;
+                            }, "Pre run setup failed.");
                         }
                         #endregion
 
-                        #region STEP 1: Logon to the Basl Web Client, with a Persistent Remote Number.
-                        using (Trace.TestCase.scope("Step 1: Logon to the Basl Web Client, with a Persistent Remote Number."))
+                        #region STEP 1: Log in using a Remote Number.
+                        using (Trace.TestCase.scope("Step 1: Log in using a Remote Number."))
                         {
                             //Step 1 Verify: Logon is successful.
-                            Func<bool> logonResult = () => this.UsersLogonAndStatusSet(this.Rm.Users, stationSettings, this.Drivers);
-                            this.TraceTrue(logonResult, "The users did not logon as expected.");
+                            var remoteStation = new StationLogonSettings(StationType.RemoteNumber, GetUserExtension(Rm.Users[_FORWARDED_USER]), true);
+                            TraceTrue(() => UserLogonAndStatusSet(Rm.Users[_REMOTE_USER], remoteStation, Drivers[0]), "Remote user failed to log on.");
                         }
                         #endregion
 
-                        #region STEP 2: Place a call using the Web Client to the remote number by dialing *.
-                        using (Trace.TestCase.scope("Step 2: Place a call using the Web Client to the remote number by dialing *."))
+                        #region STEP 2: Place a call using the Web Client to the remote number by dialing *
+                        using (Trace.TestCase.scope("Step 2: Place a call using the Web Client to the remote number by dialing *"))
                         {
-                            //Step 2 Verify: The remote phone rings.
-
-                            // Using the _REMOTE_USER, try an interaction to our FORWARD_USER.
-                            WebDriverManager.Instance.SwitchBrowser(this.Drivers[_REMOTE_USER]);
-                            ClientMain.InitiateCall("*");
-
-                            // Check that the interaction shows up on _REMOTE_USER's queue
-                            this._testOutboundInteraction = FilteredQueue.WaitForInteraction(
-                                new Dictionary<string, string>
+                            TraceTrue(() =>
+                            {
+                                _myInteractionsView = new MyInteractionsView();
+                                WaitFor(() => _myInteractionsView.Displayed);
+                                Call.Create("*", Rm.Users[_REMOTE_USER]);
+                                _interaction = GetInteraction(new Dictionary<string, string>
                                 {
-                                    {InteractionAttribute.State.AttributeId, InteractionState.SYSTEM}
+                                    {MyInteractionsView.InteractionAttribute.State.AttributeId, MyInteractionsView.InteractionState._SYSTEM}
                                 });
-                            this.TraceTrue(this._testOutboundInteraction != null, "Couldn't find the interaction on the calling user's queue");
+                                return _interaction != null;
+                            }, "Couldn't find the interaction on the calling user's queue");
                         }
                         #endregion
 
                         #region STEP 3: Pickup the connection call.
                         using (Trace.TestCase.scope("Step 3: Pickup the connection call."))
                         {
-                            //Step 3 Verify: The call is connected.
-                            WebDriverManager.Instance.SwitchBrowser(this.Drivers[_FORWARDED_USER]);
-
-                            // Get the interaction from FORWARD_USER's queue
-                            this._forwardedUserInteraction = FilteredQueue.WaitForInteraction(
-                                new Dictionary<string, string>
-                                {
-                                    {InteractionAttribute.State.AttributeId, InteractionState.ALERTING}
-                                });
-
-                            // Pick up the call 
-                            this._forwardedUserInteraction.ClickInteractionButton(InteractionButton.Pickup);
-
-                            this.TraceTrue(this._forwardedUserInteraction.WaitForAttributes(new Dictionary<string, string>
+                            // Pick up call from remote user
+                            TraceTrue(() =>
                             {
-                                {InteractionAttribute.State.AttributeId, InteractionState.CONNECTED}
-                            }), "Interaction was not connected on the remote end");
+                                return WaitFor(() =>
+                                {
+                                    var interactions = UsersQueue.GetInteractionsForUser(Rm.Users[_FORWARDED_USER], new List<string> {InteractionAttributes.CallId});
+                                    if (interactions != null && interactions.Count > 0)
+                                    {
+                                        Interaction.Pickup(interactions[0].InteractionId, Rm.Users[_FORWARDED_USER]);
+                                        return interactions[0].IsConnected();
+                                    }
+                                    return false;
+                                });
+                            }, "Failed to connect call.");
 
                             // Make sure it's connected on the local end as well
-                            WebDriverManager.Instance.SwitchBrowser(this.Drivers[_REMOTE_USER]);
-                            this.TraceTrue(this._testOutboundInteraction != null && this._testOutboundInteraction.WaitForAttributes(new Dictionary<string, string>
+                            TraceTrue(() =>
                             {
-                                {InteractionAttribute.State.AttributeId, InteractionState.CONNECTED}
-                            }), "Interaction was not connected on the local end");
+                                _interaction = GetInteraction(new Dictionary<string, string>
+                                {
+                                    {MyInteractionsView.InteractionAttribute.State.AttributeId, MyInteractionsView.InteractionState._CONNECTED}
+                                });
+                                return _interaction != null;
+                            }, "Interaction was not connected on the local end");
                         }
                         #endregion
 
                         #region STEP 4: Using the Web Client\'s Disconnect button, disconnect the call.
                         using (Trace.TestCase.scope("Step 4: Using the Web Client\'s Disconnect button, disconnect the call."))
                         {
-                            //Step 4 Verify: The call is disconnected on User1\'s queue; the remote phone remains connected to the line.
+                            //Step 4 Verify: The call is disconnected on the remote phone without error; the Web Client shows the call as Disconnected.
 
                             // Disconnect on the local end
-                            WebDriverManager.Instance.SwitchBrowser(this.Drivers[_REMOTE_USER]);
-                            this._testOutboundInteraction.ClickInteractionButton(InteractionButton.Disconnect);
+                            _myInteractionsView = new MyInteractionsView();
+                            _interaction.Select();
+                            _myInteractionsView.ClickInteractionButton(MyInteractionsView.InteractionButton.Disconnect);
 
                             // Check that the interaction was disconnected on the local end
-                            this.TraceTrue(() => this._testOutboundInteraction.WaitForAttributes(new Dictionary<string, string>
-                            {
-                                {InteractionAttribute.State.AttributeId, InteractionState.DISCONNECTED_LOCAL_DISCONNECT}
-                            }), "Interaction was not disconnected on the local end");
-
-                            // Check that the interaction is still connected on the remote end
-                            WebDriverManager.Instance.SwitchBrowser(this.Drivers[_FORWARDED_USER]);
-
-                            this.TraceTrue(() => this._forwardedUserInteraction.WaitForAttributes(new Dictionary<string, string>
-                            {
-                                {InteractionAttribute.State.AttributeId, InteractionState.CONNECTED}
-                            }), "Remote user's interaction should still be connected.");
+                            TraceTrue(() => _interaction.Refresh().State == MyInteractionsView.InteractionState._DISCONNECTED_LOCAL_DISCONNECT, "Interaction was not disconnected on the local end.");
                         }
+
+                        // The remote phone remains connected
+                        TraceTrue(() =>
+                        {
+                            return WaitFor(() =>
+                            {
+                                var interactions = UsersQueue.GetInteractionsForUser(Rm.Users[_FORWARDED_USER], new List<string> { InteractionAttributes.CallId });
+                                if (interactions != null && interactions.Count > 0)
+                                {
+                                    return interactions[0].IsConnected();
+                                }
+                                return false;
+                            });
+                        }, "Failed to stay connected.");
+
                         #endregion
 
-                        #region STEP 5: Using another phone (not the remote phone), call User1\'s extension.
-                        using (Trace.TestCase.scope("Step 5: Using another phone (not the remote phone), call User1\'s extension."))
+                        #region STEP 5: Using another phone (not your remote phone), call TestUser by dialing the user\'s extension.
+                        using (Trace.TestCase.scope("Step 5: Using another phone (not your remote phone), call TestUser by dialing the user\'s extension."))
                         {
-                            //Step 5 Verify: The call appears in User1\'s queue.
+                            //Step 5 Verify: The call appears in TestUser\'s queue.
 
                             // Use _CALLING_USER to call _REMOTE_USER
-                            WebDriverManager.Instance.SwitchBrowser(this.Drivers[_CALLING_USER]);
-                            ClientMain.InitiateCall(userExtensions[_REMOTE_USER]);
+                            Call.Create(Users.GetExtension(Rm.Users[_REMOTE_USER]), Rm.Users[_CALLING_USER]);
 
                             // Check if this shows up in _REMOTE_USER's queue
-                            WebDriverManager.Instance.SwitchBrowser(this.Drivers[_REMOTE_USER]);
-                            this._remoteUserInteraction = FilteredQueue.WaitForInteraction(
-                                new Dictionary<string, string>
+
+                            TraceTrue(() =>
+                            {
+                                _interaction = GetInteraction(new Dictionary<string, string>
                                 {
-                                    {InteractionAttribute.State.AttributeId, InteractionState.ALERTING},
-                                    {InteractionAttribute.Name.AttributeId, this.Rm.Users[_CALLING_USER]}
+                                    {MyInteractionsView.InteractionAttribute.State.AttributeId, MyInteractionsView.InteractionState._ALERTING},
+                                    {MyInteractionsView.InteractionAttribute.Name.AttributeId, Rm.Users[_CALLING_USER]}
                                 });
-                            this.TraceTrue(this._remoteUserInteraction != null, "Couldn't get the interaction from the call target's queue");
+                                return _interaction.State == MyInteractionsView.InteractionState._ALERTING;
+                            }, "Couldn't get the interaction from the call target's queue");
                         }
                         #endregion
 
                         #region STEP 6: With the alerting call selected, click the Pickup button on the Web Client.
                         using (Trace.TestCase.scope("Step 6: With the alerting call selected, click the Pickup button on the Web Client."))
                         {
-                            // Pick up the call 
-                            this._remoteUserInteraction.ClickInteractionButton(InteractionButton.Pickup);
+                            //Step 6 Verify: The call is connected. The remote phone rings.
 
-                            //NOTE-Call pick-up is verified in step 7.
+                            // Pick up the call 
+                            _interaction.Select();
+                            _myInteractionsView.ClickInteractionButton(MyInteractionsView.InteractionButton.Pickup);
+
+                            TraceTrue(() => { return WaitFor(() => _interaction.Refresh().State == MyInteractionsView.InteractionState._CONNECTED); }, "Interaction was not connected on the reciever end");
                         }
                         #endregion
 
@@ -237,70 +191,73 @@
                         using (Trace.TestCase.scope("Step 7: Pickup the connection call"))
                         {
                             //Step 7 Verify: The call is connected.
-
                             // Check that the call shows connected on the remote user's queue
-                            this.TraceTrue(() => this._forwardedUserInteraction.WaitForAttributes(new Dictionary<string, string>
+                            TraceTrue(() =>
                             {
-                                {InteractionAttribute.State.AttributeId, InteractionState.CONNECTED}
-                            }), "Remote user's interaction should still be connected.");
+                                return WaitFor(() =>
+                                {
+                                    var interactions = UsersQueue.GetInteractionsForUser(Rm.Users[_FORWARDED_USER], new List<string> {InteractionAttributes.CallId});
+                                    if (interactions != null && interactions.Count > 0)
+                                    {
+                                        return interactions[0].IsConnected();
+                                    }
+                                    return false;
+                                });
+                            }, "Remote user's interaction should still be connected.");
                         }
                         #endregion
 
-                        #region STEP 8: Disconnect the call by ending call from the remote phone.
-                        using (Trace.TestCase.scope("Step 8: Disconnect the call by ending call from the remote phone."))
+                        #region STEP 8: Disconnect the call by ending call from remote phone.
+                        using (Trace.TestCase.scope("Step 8: Disconnect the call by ending call from remote phone."))
                         {
-                            //Step 8 Verify: The call is disconnected as well as the telephone persistent connection (the remote phone does not remain connected to the line).
+                            //Step 8 Verify: The call is disconnected for the remote phone; the Web Client shows the call as Disconnected.
 
-                            // Disconnect the call from FORWARD_USER's queue
-                            WebDriverManager.Instance.SwitchBrowser(this.Drivers[_FORWARDED_USER]);
-
-                            // Disconnect the interaction from FORWARD_USER's queue
-                            this._forwardedUserInteraction.ClickInteractionButton(InteractionButton.Disconnect);
-
+                            // Disconnect the call from remote phone
                             // Verify the interaction is disconnected on _FORWARDED_USER's queue
-                            this.TraceTrue(
-                                this._forwardedUserInteraction.WaitForAttributes(new Dictionary<string, string>
+                            TraceTrue(() =>
+                            {
+                                var interactions = UsersQueue.GetInteractionsForUser(Rm.Users[_FORWARDED_USER], new List<string> { InteractionAttributes.CallId });
+                                if (interactions != null && interactions.Count > 0)
                                 {
-                                    {InteractionAttribute.State.AttributeId, InteractionState.DISCONNECTED_LOCAL_DISCONNECT}
-                                }), "Interaction didn't disconnect on the receiving end's queue");
-
-                            // Verify that the interaction is connected on _REMOTE_USER's queue
-                            WebDriverManager.Instance.SwitchBrowser(this.Drivers[_REMOTE_USER]);
-
-                            this.TraceTrue(
-                                this._remoteUserInteraction.WaitForAttributes(new Dictionary<string, string>
-                                {
-                                    {InteractionAttribute.State.AttributeId, InteractionState.DISCONNECTED_LOCAL_HANG_UP}
-                                }), "Interaction didn't disconnect on the call target end's queue");
+                                    interactions[0].Disconnect();
+                                    return WaitFor(() => !interactions[0].IsConnected());
+                                }
+                                return false;
+                            }, "Interaction didn't disconnect on the receiving end's queue.");
 
                             // Verify the interaction is disconnected on the _CALLING_USER's queue
-                            WebDriverManager.Instance.SwitchBrowser(this.Drivers[_CALLING_USER]);
-                            this.TraceTrue(FilteredQueue.WaitForInteraction(
-                                new Dictionary<string, string>
+                            TraceTrue(() =>
+                            {
+                                var interactions = UsersQueue.GetInteractionsForUser(Rm.Users[_CALLING_USER], new List<string> { InteractionAttributes.CallId });
+                                if (interactions != null && interactions.Count > 0)
                                 {
-                                    {InteractionAttribute.State.AttributeId, InteractionState.DISCONNECTED_REMOTE_DISCONNECT},
-                                    {InteractionAttribute.Name.AttributeId, this.Rm.Users[_REMOTE_USER]}
-                                }) != null, "Interaction didn't disconnect on the calling end's queue");
+                                    return WaitFor(() => !interactions[0].IsConnected());
+                                }
+                                return false;
+                            }, "Interaction didn't disconnect on the calling end's queue.");
+
+                            // Verify that the interaction is connected on _REMOTE_USER's queue
+                            TraceTrue(() => _interaction.Refresh().State == MyInteractionsView.InteractionState._DISCONNECTED_LOCAL_HANG_UP, "Interaction didn't disconnect on the call target end's queue.");
                         }
                         #endregion
 
-                        this.Passed = true;
+                        Passed = true;
                     }
                     catch (KnownScrException exception)
                     {
                         Graphics.TakeScreenshot();
-                        this.TraceTrue(
+                        TraceTrue(
                             false,
                             "Failed due to known SCR: " + exception.SCR + ". SCR Description: " + exception.Message,
                             exception.SCR);
-                        this.Passed = false;
+                        Passed = false;
                         throw;
                     }
                     catch (Exception e)
                     {
                         Graphics.TakeScreenshot();
                         Trace.TestCase.exception(e);
-                        this.Passed = false;
+                        Passed = false;
                         throw;
                     }
                     finally
@@ -308,14 +265,18 @@
                         // Perform an HTML Dump into i3trace.
                         Trace.TestCase.always("Html dump: \n{}", WebDriverManager.Instance.HtmlDump);
 
-                        this.Attributes.Add(TestCaseAttribute.WebBrowser_Desktop, WebDriverManager.Instance.GetBrowserVersion());
-                        TCDBResults.SendResultsToXml(this.TCNum, this.Passed, this.SCRs, this.Stopwatch.Elapsed.TotalSeconds, this.Attributes);
-                        TCDBResults.SubmitResult(this.TCNum, this.Passed, this.SCRs, attributes: this.Attributes);
+                        Attributes.Add(TestCaseAttribute.WebBrowser_Desktop, WebDriverManager.Instance.GetBrowserVersion());
+                        TCDBResults.SendResultsToXml(TCNum, Passed, SCRs, Stopwatch.Elapsed.TotalSeconds, Attributes);
+                        TCDBResults.SubmitResult(TCNum, Passed, SCRs, attributes: Attributes);
 
                         #region Cleanup
                         using (Trace.TestCase.scope("Post Run Clean Up"))
                         {
-                            this.ClearAllQueues();
+                            foreach (var session in _callerSessions)
+                            {
+                                session.Disconnect();
+                            }
+                            ClearAllQueues();
                         }
                         #endregion
                     }
@@ -331,11 +292,11 @@
         {
             try
             {
-                this.Run();
+                Run();
             }
             catch (Exception e)
             {
-                if (this.Passed)
+                if (Passed)
                 {
                     Trace.TestCase.exception(e, "Cleanup threw an exception. Make sure you are using ICWS APIs to do cleanup.");
                 }
@@ -346,6 +307,5 @@
                 }
             }
         }
-        #endregion
     }
 }
