@@ -2,22 +2,17 @@
 {
     using System;
     using System.Collections.Generic;
-    using System.Windows.Forms;
-    using ININ.ICWS.Configuration;
-    using ININ.ICWS.Configuration.People;
     using ININ.ICWS.Test.Common;
     using ININ.Testing.Automation.Core;
     using ININ.Testing.Automation.Core.SeleniumAPI;
     using ININ.Testing.Automation.Core.Utilities;
     using ININ.Testing.Automation.Lib.Client.Queues.MyInteractions;
     using ININ.Testing.Automation.Lib.ResourceManager;
-    using ININ.Testing.Automation.ManagedICWS.Configuration.People;
     using ININ.Testing.Automation.ManagedICWS;
-
+    using ININ.Testing.Automation.ManagedICWS.Configuration.People;
+    using ININ.Testing.Automation.ManagedICWS.Queues;
     using ININ.Testing.Automation.Tcdb;
     using Xunit;
-    using ININ.Testing.Automation.ManagedICWS.Interactions;
-    using ININ.Testing.Automation.ManagedICWS.Queues;
     using Call = ININ.Testing.Automation.ManagedICWS.Interactions.Call;
     using Interaction = ININ.Testing.Automation.ManagedICWS.Interactions.Interaction;
 
@@ -26,24 +21,13 @@
     /// </summary>
     public class TC22029 : ClientTestCase
     {
-        /// <summary>
-        ///     The user that is making the call to _REMOTE_USER
-        /// </summary>
         private const int _CALLING_USER = 0;
-
-        /// <summary>
-        ///     The user that is actually receiving the call from _CALLING_USER to _REMOTE_USER
-        /// </summary>
         private const int _FORWARDED_USER = 1;
-
-        /// <summary>
-        ///     The user that is setup with the remote number
-        /// </summary>
         private const int _REMOTE_USER = 2;
+        private readonly IList<Session> _callerSessions = new List<Session>(2);
+        private MyInteractionsView.Interaction _interaction;
+        private MyInteractionsView _myInteractionsView;
 
-        private IList<Session> _callerSessions = new List<Session>(2);
-        private MyInteractionsView.Interaction _interaction = null;
-        private MyInteractionsView _myInteractionsView = null;
         public TC22029()
         {
             TSNum = "2047";
@@ -100,12 +84,11 @@
                                 _myInteractionsView = new MyInteractionsView();
                                 WaitFor(() => _myInteractionsView.Displayed);
                                 Call.Create("*", Rm.Users[_REMOTE_USER]);
-                                _interaction= GetInteraction(new Dictionary<string, string>
+                                _interaction = GetInteraction(new Dictionary<string, string>
                                 {
-                                    {MyInteractionsView.InteractionAttribute.State.AttributeId, MyInteractionsView.InteractionState._SYSTEM},
+                                    {MyInteractionsView.InteractionAttribute.State.AttributeId, MyInteractionsView.InteractionState._SYSTEM}
                                 });
                                 return _interaction != null;
-                               
                             }, "Couldn't find the interaction on the calling user's queue");
                         }
                         #endregion
@@ -118,7 +101,7 @@
                             {
                                 return WaitFor(() =>
                                 {
-                                    var interactions = UsersQueue.GetInteractionsForUser(Rm.Users[_FORWARDED_USER], new List<string> { InteractionAttributes.CallId });
+                                    var interactions = UsersQueue.GetInteractionsForUser(Rm.Users[_FORWARDED_USER], new List<string> {InteractionAttributes.CallId});
                                     if (interactions != null && interactions.Count > 0)
                                     {
                                         Interaction.Pickup(interactions[0].InteractionId, Rm.Users[_FORWARDED_USER]);
@@ -133,7 +116,7 @@
                             {
                                 _interaction = GetInteraction(new Dictionary<string, string>
                                 {
-                                    {MyInteractionsView.InteractionAttribute.State.AttributeId, MyInteractionsView.InteractionState._CONNECTED},
+                                    {MyInteractionsView.InteractionAttribute.State.AttributeId, MyInteractionsView.InteractionState._CONNECTED}
                                 });
                                 return _interaction != null;
                             }, "Interaction was not connected on the local end");
@@ -149,7 +132,7 @@
                             _myInteractionsView = new MyInteractionsView();
                             _interaction.Select();
                             _myInteractionsView.ClickInteractionButton(MyInteractionsView.InteractionButton.Disconnect);
-                            
+
                             // Check that the interaction was disconnected on the local end
                             TraceTrue(() => _interaction.Refresh().State == MyInteractionsView.InteractionState._DISCONNECTED_LOCAL_DISCONNECT, "Interaction was not disconnected on the local end.");
                         }
@@ -161,7 +144,6 @@
                             //Step 5 Verify: The call appears in TestUser\'s queue.
 
                             // Use _CALLING_USER to call _REMOTE_USER
-                           
                             Call.Create(Users.GetExtension(Rm.Users[_REMOTE_USER]), Rm.Users[_CALLING_USER]);
 
                             // Check if this shows up in _REMOTE_USER's queue
@@ -175,7 +157,6 @@
                                 });
                                 return _interaction.State == MyInteractionsView.InteractionState._ALERTING;
                             }, "Couldn't get the interaction from the call target's queue");
-                            
                         }
                         #endregion
 
@@ -184,30 +165,11 @@
                         {
                             //Step 6 Verify: The call is connected. The remote phone rings.
 
-
                             // Pick up the call (but note that the interaction will still be alerting at this point, since the remote end hasn't picked up)
-                            //_remoteUserInteraction.ClickInteractionButton(InteractionButton.Pickup);
-                            //WebDriverManager.Instance.SwitchBrowser(Drivers[_REMOTE_USER]);
-                            /*_myInteractionsView[_REMOTE_USER] = new MyInteractionsView();
-                            TraceTrue(() =>
-                            {
-                                _interaction[_REMOTE_USER] = GetInteraction(new Dictionary<string, string>
-                                {
-                                    {MyInteractionsView.InteractionAttribute.State.AttributeId, MyInteractionsView.InteractionState._ALERTING},
-                                });
-                                return _interaction[_REMOTE_USER] != null;
-                            }, "Interaction was not connected on the reciever end");
-                            _myInteractionsView[_REMOTE_USER].ClickInteractionButton(MyInteractionsView.InteractionButton.Pickup);
-                            */
-                            /*_myInteractionsView[_REMOTE_USER] = new MyInteractionsView();
-                            _interaction[_REMOTE_USER] = GetInteraction(new Dictionary<string, string>
-                                {
-                                    {MyInteractionsView.InteractionAttribute.State.AttributeId, MyInteractionsView.InteractionState._ALERTING},
-                                });
-                            _interaction[_REMOTE_USER].Select();
-                            _myInteractionsView[_REMOTE_USER].ClickInteractionButton(MyInteractionsView.InteractionButton.Pickup);
-                            */
+                            _interaction.Select();
+                            _myInteractionsView.ClickInteractionButton(MyInteractionsView.InteractionButton.Pickup);
 
+                            TraceTrue(() => { return WaitFor(() => _interaction.Refresh().State == MyInteractionsView.InteractionState._ALERTING); }, "Interaction was not connected on the reciever end");
                         }
                         #endregion
 
@@ -215,74 +177,24 @@
                         using (Trace.TestCase.scope("Step 7: Pickup the connection call"))
                         {
                             //Step 7 Verify: The call is connected.
-
-                            //WebDriverManager.Instance.SwitchBrowser(Drivers[_FORWARDED_USER]);
-                            //_myInteractionsView[_FORWARDED_USER] = new MyInteractionsView();
-
-                            // Get the interaction from FORWARD_USER's queue
-                            /*_forwardedUserInteraction = FilteredQueue.WaitForInteraction(
-                                new Dictionary<string, string>
-                                {
-                                    {InteractionAttribute.State.AttributeId, InteractionState.ALERTING}
-                                });
-                                */
-                            /*TraceTrue(() =>
-                            {
-                                _interaction[_FORWARDED_USER] = GetInteraction(new Dictionary<string, string>
-                                {
-                                    {MyInteractionsView.InteractionAttribute.State.AttributeId, MyInteractionsView.InteractionState._ALERTING},
-                                });
-                                return _interaction[_FORWARDED_USER] != null;
-                            }, "Couldn't find the interaction on the reciever's queue");
-                            */
                             // Pick up the call 
-                            /*_forwardedUserInteraction.ClickInteractionButton(InteractionButton.Pickup);
-
-                            // Check that the call shows connected on the forwarded user's queues
-                            TraceTrue(
-                                _forwardedUserInteraction.WaitForAttributes(new Dictionary<string, string>
-                                {
-                                    {InteractionAttribute.State.AttributeId, InteractionState.CONNECTED}
-                                }), "Couldn't find connected interaction after picking the interaction on the receiving end's queue");
-
-                            // Check that the call shows connected on the remote user's queue
-                            WebDriverManager.Instance.SwitchBrowser(Drivers[_REMOTE_USER]);
-                            TraceTrue(
-                                _remoteUserInteraction.WaitForAttributes(new Dictionary<string, string>
-                                {
-                                    {InteractionAttribute.State.AttributeId, InteractionState.CONNECTED}
-                                }), "Couldn't find connected interaction after picking the interaction on the call target's queue");
-                                */
-                            //_interaction[_FORWARDED_USER].Select();
-                            //_myInteractionsView[_FORWARDED_USER].ClickInteractionButton(MyInteractionsView.InteractionButton.Pickup);
-                            /*TraceTrue(_testInboundInteraction.WaitForAttributes(new Dictionary<string, string>
-                            {
-                                {InteractionAttribute.State.AttributeId, InteractionState.CONNECTED}
-                            }), "Interaction was not connected on the remote end");
-                            */
-
-                            /*TraceTrue(() =>
-                            {
-                                _interaction[_FORWARDED_USER] = GetInteraction(new Dictionary<string, string>
-                                {
-                                    {MyInteractionsView.InteractionAttribute.State.AttributeId, MyInteractionsView.InteractionState._CONNECTED},
-                                    //{MyInteractionsView.InteractionAttribute.Name.AttributeId, Rm.Users[_FORWARDED_USER]}
-                                });
-                                return _interaction[_FORWARDED_USER] != null;
-                            }, "Interaction was not connected on the remote end");
-
-                            // Make sure it's connected on the local end as well
-                            WebDriverManager.Instance.SwitchBrowser(Drivers[_REMOTE_USER]);
+                            //Todo: need a better way to check which interaction has status: alert
                             TraceTrue(() =>
                             {
-                                _interaction[_REMOTE_USER] = GetInteraction(new Dictionary<string, string>
+                                return WaitFor(() =>
                                 {
-                                    {MyInteractionsView.InteractionAttribute.State.AttributeId, MyInteractionsView.InteractionState._CONNECTED},
-                                    //{MyInteractionsView.InteractionAttribute.Name.AttributeId, Rm.Users[_REMOTE_USER]}
+                                    var interactions = UsersQueue.GetInteractionsForUser(Rm.Users[_FORWARDED_USER], new List<string> {InteractionAttributes.CallId});
+                                    if (interactions != null && interactions.Count > 0)
+                                    {
+                                        Interaction.Pickup(interactions[1].InteractionId, Rm.Users[_FORWARDED_USER]);
+                                        return interactions[1].IsConnected();
+                                    }
+                                    return false;
                                 });
-                                return _interaction[_REMOTE_USER] != null;
-                            }, "Interaction was not connected on the local end");
-                            */
+                            }, "Failed to connect call.");
+
+                            //Veryfy: The call is connected on remote phone
+                            TraceTrue(_interaction.Refresh().State == MyInteractionsView.InteractionState._CONNECTED, "Interaction was not connected on the remote end");
                         }
                         #endregion
 
@@ -291,75 +203,30 @@
                         {
                             //Step 8 Verify: The call is disconnected for the remote phone; the Web Client shows the call as Disconnected.
 
-                            // Disconnect the call from FORWARD_USER's queue
-                            //WebDriverManager.Instance.SwitchBrowser(Drivers[_FORWARDED_USER]);
+                            // Disconnect the call from remote phone
 
-                            // Disconnect the interaction from FORWARD_USER's queue
-                            //_forwardedUserInteraction.ClickInteractionButton(InteractionButton.Disconnect);
+                            _interaction.Select();
+                            _myInteractionsView.ClickInteractionButton(MyInteractionsView.InteractionButton.Disconnect);
+                            TraceTrue(() => _interaction.Refresh().State == MyInteractionsView.InteractionState._DISCONNECTED_LOCAL_DISCONNECT, "Interaction was not disconnected on the local end.");
 
-                            /*WebDriverManager.Instance.SwitchBrowser(Drivers[_FORWARDED_USER]);
-                            _interaction[_FORWARDED_USER] = GetInteraction(new Dictionary<string, string>
-                                {
-                                    {MyInteractionsView.InteractionAttribute.State.AttributeId, MyInteractionsView.InteractionState._CONNECTED},
-                                });
-                            _interaction[_FORWARDED_USER].Select();
-                            _myInteractionsView[_FORWARDED_USER].ClickInteractionButton(MyInteractionsView.InteractionButton.Disconnect);
-                            */
                             // Verify the interaction is disconnected on _FORWARDED_USER's queue
-                            /*TraceTrue(
-                                _forwardedUserInteraction.WaitForAttributes(new Dictionary<string, string>
-                                {
-                                    {InteractionAttribute.State.AttributeId, InteractionState.DISCONNECTED_LOCAL_DISCONNECT}
-                                }), "Interaction didn't disconnect on the receiving end's queue");
-                                */
-                            /*
                             TraceTrue(() =>
                             {
-                                _interaction[_FORWARDED_USER] = GetInteraction(new Dictionary<string, string>
+                                var interactions = UsersQueue.GetInteractionsForUser(Rm.Users[_FORWARDED_USER], new List<string> {InteractionAttributes.CallId});
+                                if (interactions != null && interactions.Count > 0)
                                 {
-                                    {MyInteractionsView.InteractionAttribute.State.AttributeId, MyInteractionsView.InteractionState._DISCONNECTED_LOCAL_DISCONNECT},
-                                });
-                                return _interaction[_FORWARDED_USER] != null;
-                            }, "Interaction didn't disconnect on the receiving end's queue");
-                            */
-
-                            // Verify that the interaction is connected on _REMOTE_USER's queue
-                            //WebDriverManager.Instance.SwitchBrowser(Drivers[_REMOTE_USER]);
-
-                            /*TraceTrue(
-                                _remoteUserInteraction.WaitForAttributes(new Dictionary<string, string>
-                                {
-                                    {InteractionAttribute.State.AttributeId, InteractionState.DISCONNECTED_LOCAL_HANG_UP}
-                                }), "Interaction didn't disconnect on the call target end's queue");
-                                */
-
-                            /*TraceTrue(() =>
-                            {
-                                _interaction[_REMOTE_USER] = GetInteraction(new Dictionary<string, string>
-                                {
-                                    {MyInteractionsView.InteractionAttribute.State.AttributeId, MyInteractionsView.InteractionState._DISCONNECTED_LOCAL_HANG_UP},
-                                });
-                                return _interaction[_REMOTE_USER] != null;
-                            }, "Interaction didn't disconnect on the call target end's queue");
-
-                            // Verify the interaction is disconnected on the _CALLING_USER's queue
-                            WebDriverManager.Instance.SwitchBrowser(Drivers[_CALLING_USER]);
-                            /*TraceTrue(FilteredQueue.WaitForInteraction(
-                                new Dictionary<string, string>
-                                {
-                                    {InteractionAttribute.State.AttributeId, InteractionState.DISCONNECTED_REMOTE_DISCONNECT},
-                                    {InteractionAttribute.Name.AttributeId, Rm.Users[_REMOTE_USER]}
-                                }) != null, "Interaction didn't disconnect on the calling end's queue");
-                            */
-                           /* TraceTrue(() =>
-                            {
-                                _interaction[_CALLING_USER] = GetInteraction(new Dictionary<string, string>
-                                {
-                                    {MyInteractionsView.InteractionAttribute.State.AttributeId, MyInteractionsView.InteractionState._DISCONNECTED_REMOTE_DISCONNECT},
-                                });
-                                return _interaction[_CALLING_USER] != null;
-                            }, "Interaction didn't disconnect on the calling end's queue");
-                        */
+                                    foreach (var workItem in interactions)
+                                    {
+                                        if (workItem.IsConnected())
+                                        {
+                                            var item = workItem;
+                                            WaitFor(() => !item.IsConnected());
+                                        }
+                                    }
+                                    return true;
+                                }
+                                return false;
+                            }, "Interaction was not disconnected.");
                         }
                         #endregion
 
@@ -394,6 +261,10 @@
                         #region Cleanup
                         using (Trace.TestCase.scope("Post Run Clean Up"))
                         {
+                            foreach (var session in _callerSessions)
+                            {
+                                session.Disconnect();
+                            }
                             ClearAllQueues();
                         }
                         #endregion
