@@ -215,15 +215,7 @@
                                 var interactions = UsersQueue.GetInteractionsForUser(Rm.Users[_FORWARDED_USER], new List<string> {InteractionAttributes.CallId});
                                 if (interactions != null && interactions.Count > 0)
                                 {
-                                    foreach (var workItem in interactions)
-                                    {
-                                        if (workItem.IsConnected())
-                                        {
-                                            var item = workItem;
-                                            WaitFor(() => !item.IsConnected());
-                                        }
-                                    }
-                                    return true;
+                                    return WaitFor(() => interactions.All(workItem => !workItem.IsConnected()));
                                 }
                                 return false;
                             }, "Interaction was not disconnected.");
