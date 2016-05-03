@@ -23,14 +23,14 @@
         private const string _INVALID_ID = "fdjskaljfdklsjfdjskla";
 
         /// <summary>
-        ///     Change station page object
-        /// </summary>
-        private ChangeStation _changeStation;
-
-        /// <summary>
         ///     The default expected error message.
         /// </summary>
-        private string _expectedErrorMessage = "The authentication process failed.";
+        private const string _EXPECTED_ERROR_MESSAGE = "The authentication process failed.";
+
+        /// <summary>
+        ///     The default expected error message for invalid station name.
+        /// </summary>
+        private const string _EXPECTED_INVALID_STATION_ERROR_MESSAGE = "The specified station name is invalid.";
 
         /// <summary>
         ///     Logon page object
@@ -114,9 +114,8 @@
                             //Step 4 Verify: An error appears at the top of the form.
                             //Comment: Currently, the error says: \'The specified station name is invalid.\'
 
-                            _changeStation = ChangeStation.Get();
-                            _expectedErrorMessage = "Step 4 - The specified station name is invalid.";
-                            TraceTrue(() => { return WaitFor(() => _changeStation.ChangeStationErrorView.Text.Contains(_expectedErrorMessage)); }, "The error message was not found for invalid station name.");
+                            var changeStation = ChangeStation.Get();
+                            TraceTrue(() => { return WaitFor(() => changeStation.ChangeStationErrorView.Text.Contains(_EXPECTED_INVALID_STATION_ERROR_MESSAGE)); }, "Step 4 - The error message was not found for invalid station name.");
                         }
                         #endregion
 
@@ -199,7 +198,7 @@
             TraceTrue(() => WaitFor(() => _logon.IcAuthLogonForm.Displayed), "IC auth logon form could not be found.");
             TraceTrue(() => WaitFor(() => _logon.IcAuthErrorMessageLabel.Displayed), "IC auth error message could not be found.");
             TraceTrue(!string.IsNullOrWhiteSpace(_logon.UserIDTextField.Text), "When logging in with an invalid user name, the page just refreshes without displaying an error.");
-            TraceTrue(_logon.IcAuthErrorMessageLabel.Text.Contains(_expectedErrorMessage), assertionErrorMessage);
+            TraceTrue(_logon.IcAuthErrorMessageLabel.Text.Contains(_EXPECTED_ERROR_MESSAGE), assertionErrorMessage);
         }
     }
 }
