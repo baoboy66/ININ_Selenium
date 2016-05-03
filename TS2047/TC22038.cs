@@ -10,7 +10,6 @@
     using ININ.Testing.Automation.ManagedICWS.Configuration.People;
     using ININ.Testing.Automation.Tcdb;
     using Xunit;
-    using StaleElementReferenceException = OpenQA.Selenium.StaleElementReferenceException;
 
     /// <summary>
     ///     Multiple Login Sessions on same browser
@@ -62,7 +61,6 @@
                             {
                                 WebDriverManager.Instance.SwitchBrowser(Drivers[0]);
                                 return WaitFor(() => Util.IsLoggedIn());
-
                             }, "Step 2 - Default views not displayed. Client does not appear to be connected.");
                         }
                         #endregion
@@ -86,7 +84,6 @@
                             {
                                 WebDriverManager.Instance.SwitchBrowser(Drivers[0]);
                                 return WaitFor(() => Util.IsLoggedIn());
-
                             }, "Step 4 - Default views not displayed. Client does not appear to be connected.");
                         }
                         #endregion
@@ -101,7 +98,6 @@
                             {
                                 WebDriverManager.Instance.SwitchBrowser(Drivers[0]);
                                 return WaitFor(() => Util.IsLoggedIn());
-
                             }, "Step 5 - Default views not displayed. Client does not appear to be connected.");
                         }
                         #endregion
@@ -126,7 +122,6 @@
                             {
                                 WebDriverManager.Instance.SwitchBrowser(Drivers[2]);
                                 return WaitFor(() => Util.IsLoggedIn());
-
                             }, "Step 7 - Default views not displayed. Client does not appear to be connected.");
                             WebDriverManager.Instance.SwitchBrowser(Drivers[0]);
                             TraceTrue(() => Logoff.IsAtLogoff(), "User still logged into both stations at the same time");
