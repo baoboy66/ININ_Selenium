@@ -80,7 +80,7 @@
                             TraceTrue(() => WaitFor(() => _logon.IcAuthLogonForm.Displayed), "Step 1 - IC auth logon form could not be found.");
                             TraceTrue(() => WaitFor(() => _logon.IcAuthErrorMessageLabel.Displayed), "Step 1 - IC auth error message could not be found.");
                             TraceTrue(!string.IsNullOrWhiteSpace(_logon.UserIDTextField.Text), "Step 1 - When logging in with an invalid user name, the page just refreshes without displaying an error.");
-                            TraceTrue(_logon.IcAuthErrorMessageLabel.Text.Contains(_EXPECTED_ERROR_MESSAGE), "Step 1 - IC auth logon form could not be found.");
+                            TraceTrue(() =>_logon.IcAuthErrorMessageLabel.Text.Contains(_EXPECTED_ERROR_MESSAGE), "Step 1 - IC auth logon form could not be found.");
                         }
                         #endregion
 
@@ -96,7 +96,7 @@
                             TraceTrue(() => WaitFor(() => _logon.IcAuthLogonForm.Displayed), "Step 2 - IC auth logon form could not be found.");
                             TraceTrue(() => WaitFor(() => _logon.IcAuthErrorMessageLabel.Displayed), "Step 2 - IC auth error message could not be found.");
                             TraceTrue(!string.IsNullOrWhiteSpace(_logon.UserIDTextField.Text), "Step 2 - When logging in with an invalid user name, the page just refreshes without displaying an error.");
-                            TraceTrue(_logon.IcAuthErrorMessageLabel.Text.Contains(_EXPECTED_ERROR_MESSAGE), "Step 2 - The error message was not found or incorrect for password");
+                            TraceTrue(() =>_logon.IcAuthErrorMessageLabel.Text.Contains(_EXPECTED_ERROR_MESSAGE), "Step 2 - The error message was not found or incorrect for password");
                         }
                         #endregion
 
@@ -121,7 +121,7 @@
                             //Step 4 Verify: An error appears at the top of the form.
                             //Comment: Currently, the error says: \'The specified station name is invalid.\'
                             var changeStation = ChangeStation.Get();
-                            TraceTrue(() => { return WaitFor(() => changeStation.ChangeStationErrorView.Text.Contains(_EXPECTED_INVALID_STATION_ERROR_MESSAGE)); }, "Step 4 - The error message was not found for invalid station name.");
+                            TraceTrue(() => WaitFor(() => changeStation.ChangeStationErrorView.Text.Contains(_EXPECTED_INVALID_STATION_ERROR_MESSAGE)), "Step 4 - The error message was not found for invalid station name.");
                         }
                         #endregion
 
