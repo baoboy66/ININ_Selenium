@@ -77,7 +77,10 @@
 
                             //Step 1 Verify: An error appears at the top of the form
                             //Comment: Currently, the error says: \'The authentication process failed.\'
-                            AssertIcAuthError("Step 1 - IC auth logon form could not be found.");
+                            TraceTrue(() => WaitFor(() => _logon.IcAuthLogonForm.Displayed), "Step 1 - IC auth logon form could not be found.");
+                            TraceTrue(() => WaitFor(() => _logon.IcAuthErrorMessageLabel.Displayed), "Step 1 - IC auth error message could not be found.");
+                            TraceTrue(!string.IsNullOrWhiteSpace(_logon.UserIDTextField.Text), "Step 1 - When logging in with an invalid user name, the page just refreshes without displaying an error.");
+                            TraceTrue(_logon.IcAuthErrorMessageLabel.Text.Contains(_EXPECTED_ERROR_MESSAGE), "Step 1 - IC auth logon form could not be found.");
                         }
                         #endregion
 
@@ -90,7 +93,10 @@
 
                             //Step 2 Verify: An error appears at the top of the form.
                             //Comment: Currently, the error says: \'The authentication process failed.\'
-                            AssertIcAuthError("Step 2 - The error message was not found or incorrect for password");
+                            TraceTrue(() => WaitFor(() => _logon.IcAuthLogonForm.Displayed), "Step 2 - IC auth logon form could not be found.");
+                            TraceTrue(() => WaitFor(() => _logon.IcAuthErrorMessageLabel.Displayed), "Step 2 - IC auth error message could not be found.");
+                            TraceTrue(!string.IsNullOrWhiteSpace(_logon.UserIDTextField.Text), "Step 2 - When logging in with an invalid user name, the page just refreshes without displaying an error.");
+                            TraceTrue(_logon.IcAuthErrorMessageLabel.Text.Contains(_EXPECTED_ERROR_MESSAGE), "Step 2 - The error message was not found or incorrect for password");
                         }
                         #endregion
 
@@ -111,9 +117,9 @@
                         {
                             ChangeStation.SetStation(_DEFAULT_STATION_TYPE, _INVALID_ID);
                             ChangeStation.ClickChooseStation();
+
                             //Step 4 Verify: An error appears at the top of the form.
                             //Comment: Currently, the error says: \'The specified station name is invalid.\'
-
                             var changeStation = ChangeStation.Get();
                             TraceTrue(() => { return WaitFor(() => changeStation.ChangeStationErrorView.Text.Contains(_EXPECTED_INVALID_STATION_ERROR_MESSAGE)); }, "Step 4 - The error message was not found for invalid station name.");
                         }
@@ -187,18 +193,6 @@
                     throw;
                 }
             }
-        }
-
-        /// <summary>
-        ///     Verify if the error is correct
-        /// </summary>
-        /// <param name="assertionErrorMessage">Error message</param>
-        private void AssertIcAuthError(string assertionErrorMessage)
-        {
-            TraceTrue(() => WaitFor(() => _logon.IcAuthLogonForm.Displayed), "IC auth logon form could not be found.");
-            TraceTrue(() => WaitFor(() => _logon.IcAuthErrorMessageLabel.Displayed), "IC auth error message could not be found.");
-            TraceTrue(!string.IsNullOrWhiteSpace(_logon.UserIDTextField.Text), "When logging in with an invalid user name, the page just refreshes without displaying an error.");
-            TraceTrue(_logon.IcAuthErrorMessageLabel.Text.Contains(_EXPECTED_ERROR_MESSAGE), assertionErrorMessage);
         }
     }
 }
