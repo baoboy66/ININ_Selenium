@@ -49,7 +49,7 @@
                             // Step 1 Verify: Webclient homepage opens without error.
                             WebDriverManager.Instance.SwitchBrowser(Drivers[0]);
                             Logon.GoToLogon();
-                            TraceTrue(() => Logon.IsAtServerForm(), "Step 1 - Couldn't get to the servre form.");
+                            TraceTrue(() => Logon.IsAtServerForm(), "Step 1 - Couldn't get to the server form.");
                         }
                         #endregion
 
@@ -58,7 +58,12 @@
                         {
                             // Step 2 Verify: User logs in to IC server through webclient.
                             TraceTrue(() => UserLogonAndStatusSet(Rm.Users[0], Rm.Stations[0], Drivers[0]), "Step 2 - Did not Logon successfully");
-                            TraceTrue(() => VerifyDriverIsLoggedIntoClient(Drivers[0]), "Step 2 - Default views not displayed. Client does not appear to be connected.");
+                            TraceTrue(() =>
+                            {
+                                WebDriverManager.Instance.SwitchBrowser(Drivers[0]);
+                                return WaitFor(() => Util.IsLoggedIn());
+
+                            }, "Step 2 - Default views not displayed. Client does not appear to be connected.");
                         }
                         #endregion
 
@@ -77,7 +82,12 @@
                         {
                             // Step 4 Verify: The user is logged in and both sessions are active.
                             TraceTrue(() => UserLogonAndStatusSet(Rm.Users[0], Rm.Stations[0], Drivers[1]), "Did not Logon successfully the second time.");
-                            TraceTrue(() => VerifyDriverIsLoggedIntoClient(Drivers[0]), "Step 4 - Default views not displayed. Client does not appear to be connected.");
+                            TraceTrue(() =>
+                            {
+                                WebDriverManager.Instance.SwitchBrowser(Drivers[0]);
+                                return WaitFor(() => Util.IsLoggedIn());
+
+                            }, "Step 4 - Default views not displayed. Client does not appear to be connected.");
                         }
                         #endregion
 
@@ -87,7 +97,12 @@
                             // Step 5 Verify: Original session is still open and does not close. 
                             WebDriverManager.Instance.SwitchBrowser(Drivers[1]);
                             WebDriverManager.Instance.CurrentDriver.Quit();
-                            TraceTrue(() => VerifyDriverIsLoggedIntoClient(Drivers[0]), "Step 5 - Default views not displayed. Client does not appear to be connected.");
+                            TraceTrue(() =>
+                            {
+                                WebDriverManager.Instance.SwitchBrowser(Drivers[0]);
+                                return WaitFor(() => Util.IsLoggedIn());
+
+                            }, "Step 5 - Default views not displayed. Client does not appear to be connected.");
                         }
                         #endregion
 
@@ -107,7 +122,12 @@
                             //Step 7 Verify: The user is logged in and the original session is disconnected.
                             TraceTrue(() => UserLogonAndStatusSet(Rm.Users[0], Rm.Stations[1], Drivers[2]), "Step 7 - Did not Logon successfully");
                             WebDriverManager.Instance.SwitchBrowser(Drivers[2]);
-                            TraceTrue(() => VerifyDriverIsLoggedIntoClient(Drivers[2]), "Step 7 - Default views not displayed. Client does not appear to be connected.");
+                            TraceTrue(() =>
+                            {
+                                WebDriverManager.Instance.SwitchBrowser(Drivers[2]);
+                                return WaitFor(() => Util.IsLoggedIn());
+
+                            }, "Step 7 - Default views not displayed. Client does not appear to be connected.");
                             WebDriverManager.Instance.SwitchBrowser(Drivers[0]);
                             TraceTrue(() => Logoff.IsAtLogoff(), "User still logged into both stations at the same time");
                         }
@@ -167,21 +187,6 @@
                     throw;
                 }
             }
-        }
-
-        /// <summary>
-        ///     Verify that the given web driver appears to be logged in and have a connected session
-        /// </summary>
-        /// <param name="webDriver">The driver to check</param>
-        /// <returns>True if the driver is logged onto the client, false otherwise</returns>
-        private static bool VerifyDriverIsLoggedIntoClient(string webDriver)
-        {
-            var waiter = new WebDriverBaseWait();
-            waiter.IgnoreExceptionTypes(typeof(StaleElementReferenceException));
-
-            WebDriverManager.Instance.SwitchBrowser(webDriver);
-
-            return waiter.Until(d => Util.IsLoggedIn(0));
         }
     }
 }
