@@ -54,30 +54,37 @@
                         #region Pre Run Setup
                         using (Trace.TestCase.scope("Pre Run Setup"))
                         {
-                            // make sure the user is added to the right role.
-                            Users.SetRole(Rm.Users[0], _DEFAULT_ROLE);
-                            Status.Set(Rm.Users[0], "Available");
+                            TraceTrue(() =>
+                            {
+                                // make sure the user is added to the right role.
+                                Users.SetRole(Rm.Users[0], _DEFAULT_ROLE);
+                                Status.Set(Rm.Users[0], "Available");
 
-                            // setup the driver
-                            Drivers = WebDriverManager.Instance.AddDriver(1);
+                                // setup the driver
+                                Drivers = WebDriverManager.Instance.AddDriver(1);
 
-                            // set the Logon object
-                            _logon = Logon.Get();
-                            Logon.GoToLogon();
-                            _logon.SetServerForm(IcServer);
+                                // set the Logon object
+                                _logon = Logon.Get();
+
+                                return true;
+                            }, "Pre run setup failed.");
                         }
                         #endregion
 
                         #region STEP 1: Attempt to Logon with an invalid user id.
                         using (Trace.TestCase.scope("Step 1: Attempt to login with an invalid user id."))
                         {
-                            _logon.UserIDTextField.SendKeys(_INVALID_ID, true);
-                            _logon.PasswordTextField.SendKeys(UserPassword, true);
-                            _logon.LogonButton.Click();
-
                             //Step 1 Verify: An error appears at the top of the form
                             //Comment: Currently, the error says: \'The authentication process failed.\'
-                            TraceTrue(() => WaitFor(() => _logon.IcAuthLogonForm.Displayed), "Step 1 - IC auth logon form could not be found.");
+                            TraceTrue(() =>
+                            {
+                                Logon.GoToLogon();
+                                _logon.SetServerForm(IcServer);
+                                _logon.UserIDTextField.SendKeys(_INVALID_ID, true);
+                                _logon.PasswordTextField.SendKeys(UserPassword, true);
+                                _logon.LogonButton.Click();
+                                return WaitFor(() => _logon.IcAuthLogonForm.Displayed);
+                            }, "Step 1 - IC auth logon form could not be found.");
                             TraceTrue(() => WaitFor(() => _logon.IcAuthErrorMessageLabel.Displayed), "Step 1 - IC auth error message could not be found.");
                             TraceTrue(!string.IsNullOrWhiteSpace(_logon.UserIDTextField.Text), "Step 1 - When logging in with an invalid user name, the page just refreshes without displaying an error.");
                             TraceTrue(() =>_logon.IcAuthErrorMessageLabel.Text.Contains(_EXPECTED_ERROR_MESSAGE), "Step 1 - IC auth logon form could not be found.");
@@ -87,13 +94,15 @@
                         #region STEP 2: Attempt to login with an invalid password.
                         using (Trace.TestCase.scope("Step 2: Attempt to login with an invalid password."))
                         {
-                            _logon.UserIDTextField.SendKeys(Rm.Users[0], true);
-                            _logon.PasswordTextField.SendKeys(_INVALID_ID, true);
-                            _logon.LogonButton.Click();
-
                             //Step 2 Verify: An error appears at the top of the form.
                             //Comment: Currently, the error says: \'The authentication process failed.\'
-                            TraceTrue(() => WaitFor(() => _logon.IcAuthLogonForm.Displayed), "Step 2 - IC auth logon form could not be found.");
+                            TraceTrue(() =>
+                            {
+                                _logon.UserIDTextField.SendKeys(Rm.Users[0], true);
+                                _logon.PasswordTextField.SendKeys(_INVALID_ID, true);
+                                _logon.LogonButton.Click();
+                                return WaitFor(() => _logon.IcAuthLogonForm.Displayed);
+                            }, "Step 2 - IC auth logon form could not be found.");
                             TraceTrue(() => WaitFor(() => _logon.IcAuthErrorMessageLabel.Displayed), "Step 2 - IC auth error message could not be found.");
                             TraceTrue(!string.IsNullOrWhiteSpace(_logon.UserIDTextField.Text), "Step 2 - When logging in with an invalid user name, the page just refreshes without displaying an error.");
                             TraceTrue(() =>_logon.IcAuthErrorMessageLabel.Text.Contains(_EXPECTED_ERROR_MESSAGE), "Step 2 - The error message was not found or incorrect for password");
@@ -103,25 +112,29 @@
                         #region STEP 3: Authenticate with a valid user id and password.
                         using (Trace.TestCase.scope("Step 3: Authenticate with a valid user id and password."))
                         {
-                            _logon.UserIDTextField.SendKeys(Rm.Users[0], true);
-                            _logon.PasswordTextField.SendKeys(UserPassword, true);
-                            _logon.LogonButton.Click();
-
                             //Step 3 Verify: The station selection page is displayed.
-                            TraceTrue(() => ChangeStation.ChangeStationViewIsShown(), "Step 3 - The change station view was not shown.");
+                            TraceTrue(() =>
+                            {
+                                _logon.UserIDTextField.SendKeys(Rm.Users[0], true);
+                                _logon.PasswordTextField.SendKeys(UserPassword, true);
+                                _logon.LogonButton.Click();
+                                return ChangeStation.ChangeStationViewIsShown();
+                            }, "Step 3 - The change station view was not shown.");
                         }
                         #endregion
 
                         #region STEP 4: Attempt to login with an invalid station name.
                         using (Trace.TestCase.scope("Step 4: Attempt to login with an invalid station name."))
                         {
-                            ChangeStation.SetStation(_DEFAULT_STATION_TYPE, _INVALID_ID);
-                            ChangeStation.ClickChooseStation();
-
                             //Step 4 Verify: An error appears at the top of the form.
                             //Comment: Currently, the error says: \'The specified station name is invalid.\'
-                            var changeStation = ChangeStation.Get();
-                            TraceTrue(() => WaitFor(() => changeStation.ChangeStationErrorView.Text.Contains(_EXPECTED_INVALID_STATION_ERROR_MESSAGE)), "Step 4 - The error message was not found for invalid station name.");
+                            TraceTrue(() =>
+                            {
+                                ChangeStation.SetStation(_DEFAULT_STATION_TYPE, _INVALID_ID);
+                                ChangeStation.ClickChooseStation();
+                                var changeStation = ChangeStation.Get();
+                                return WaitFor(() => changeStation.ChangeStationErrorView.Text.Contains(_EXPECTED_INVALID_STATION_ERROR_MESSAGE));
+                            }, "Step 4 - The error message was not found for invalid station name.");
                         }
                         #endregion
 
