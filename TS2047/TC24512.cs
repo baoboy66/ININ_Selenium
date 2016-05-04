@@ -47,48 +47,59 @@
                         #region Pre Run Setup
                         using (Trace.TestCase.scope("Pre Run Setup"))
                         {
-                            // Set default role
-                            Users.SetRole(Rm.Users[0], _DEFAULT_ROLE);
-                            Status.Set(Rm.Users[0], "Available");
-
-                            // Disable Client Access License
-                            Users.SetClientAccessLicense(Rm.Users[0], false);
-
-                            // Disable Client Accesss Right for workstation
-                            var getStationRequestParameters = new StationsResource.GetStationRequestParameters
+                            TraceTrue(() =>
                             {
-                                Select = "*", Id = Rm.Stations[0]
-                            };
-                            var stationDataContract = Stations.Get(getStationRequestParameters);
-                            if (stationDataContract.StationLicensePropertiesHasValue == false)
-                            {
-                                stationDataContract.StationLicenseProperties = new StationLicensePropertiesDataContract
+                                // Set default role
+                                Users.SetRole(Rm.Users[0], _DEFAULT_ROLE);
+                                Status.Set(Rm.Users[0], "Available");
+
+                                // Disable Client Access License
+                                Users.SetClientAccessLicense(Rm.Users[0], false);
+
+                                // Disable Client Accesss Right for workstation
+                                var getStationRequestParameters = new StationsResource.GetStationRequestParameters
                                 {
-                                    LicenseActive = true
+                                    Select = "*",
+                                    Id = Rm.Stations[0]
                                 };
-                            }
-                            if (stationDataContract.StationLicenseProperties.HasClientAccessHasValue && stationDataContract.StationLicenseProperties.HasClientAccess == true)
-                            {
-                                stationDataContract.StationLicenseProperties.HasClientAccess = false;
-                                // udpate the station
-                                Stations.Set(stationDataContract);
-                            }
+                                var stationDataContract = Stations.Get(getStationRequestParameters);
+                                if (stationDataContract.StationLicensePropertiesHasValue == false)
+                                {
+                                    stationDataContract.StationLicenseProperties = new StationLicensePropertiesDataContract
+                                    {
+                                        LicenseActive = true
+                                    };
+                                }
+                                if (stationDataContract.StationLicenseProperties.HasClientAccessHasValue && stationDataContract.StationLicenseProperties.HasClientAccess == true)
+                                {
+                                    stationDataContract.StationLicenseProperties.HasClientAccess = false;
+                                    // udpate the station
+                                    Stations.Set(stationDataContract);
+                                }
+                                return true;
+                            }, "Pre run setup failed.");
+
                         }
                         #endregion
 
                         #region STEP 1: Attempt to Logon without a Client Access License
                         using (Trace.TestCase.scope("Step 1: Attempt to Logon without a Client Access License"))
                         {
-                            // log in
-                            Logon.DoLogon(Rm.Users[0], UserPassword, IcServer, shouldSetStation: false);
-                            ChangeStation.SetStation(_DEFAULT_STATION_TYPE, Rm.Stations[0]);
-                            ChangeStation.ClickChooseStation();
-
                             //Step 1 Verify: An error appears at the top of the form.
                             //Comment: The station and user both cannot have the license.  Currently, the error says: \'You were logged off because there was a problem connecting to the specified station. The following licenses were not available: I3_ACCESS_CLIENT.\'
-                            TraceTrue(() => Logoff.IsAtLogoff(), "Step 1 - The user is not at the logoff view.");
-                            var logoff = Logoff.Get();
-                            TraceTrue(() => WaitFor(() => logoff.MessageElement.Text.Contains(_EXPECTED_ERROR_MESSAGE)), "Step 1 - There was an error with verifying the error message");
+                            TraceTrue(() =>
+                            {
+                                Logon.DoLogon(Rm.Users[0], UserPassword, IcServer, shouldSetStation: false);
+                                ChangeStation.SetStation(_DEFAULT_STATION_TYPE, Rm.Stations[0]);
+                                ChangeStation.ClickChooseStation();
+                                return Logoff.IsAtLogoff();
+                            }, "Step 1 - The user is not at the logoff view.");
+
+                            TraceTrue(() =>
+                            {
+                                var logoff = Logoff.Get();
+                                return WaitFor(() => logoff.MessageElement.Text.Contains(_EXPECTED_ERROR_MESSAGE));
+                            }, "Step 1 - There was an error with verifying the error message");
                         }
                         #endregion
 
@@ -96,36 +107,37 @@
                         using (Trace.TestCase.scope("Step 2: Reassign the Client Access License to either Station1 or User1. Remove the ACL from User1 for Station Logon to Station1. Attempt to login."))
                         {
                             //Step 2 Verify: An error appears at the top of the form.
-
-                            Logoff.Get().ReturnToLogonButton.Click();
-
-                            // Enable Client Access License
-                            Users.SetClientAccessLicense(Rm.Users[0], true);
-
-                            // remove the ability to Logon to the station
-                            // to get around possible inheritance of ACLs, we will 
-                            // just remove all role and workgroups
-                            // NOTE: Hopefully we are not inheriting Station Logon from Default User
-
-                            var getUserRequestParameters = new UsersResource.GetUserRequestParameters
+                            TraceTrue(() =>
                             {
-                                Select = "*",
-                                ActualValues = "true",
-                                Id = Rm.Users[0]
-                            };
-                            var userDataContract = Users.Get(getUserRequestParameters);
-                            userDataContract.Roles = new InheritableConfigurationIdCollectionDataContract {ActualValue = new List<ConfigurationIdDataContract>()};
-                            userDataContract.Workgroups = new List<ConfigurationIdDataContract>();
+                                Logoff.Get().ReturnToLogonButton.Click();
 
-                            // udpate the user
-                            Users.Set(userDataContract);
+                                // Enable Client Access License
+                                Users.SetClientAccessLicense(Rm.Users[0], true);
 
-                            Logon.DoLogon(Rm.Users[0], UserPassword, IcServer, shouldSetStation: false);
-                            ChangeStation.SetStation(_DEFAULT_STATION_TYPE, Rm.Stations[0]);
-                            ChangeStation.ClickChooseStation();
+                                // remove the ability to Logon to the station
+                                // to get around possible inheritance of ACLs, we will 
+                                // just remove all role and workgroups
+                                // NOTE: Hopefully we are not inheriting Station Logon from Default User
 
-                            //Verify the expected Error Message
-                            TraceTrue(() => WaitFor(() => ChangeStation.Get().ChangeStationErrorView.Text.Equals(_EXPECTED_ERROR_MESSAGE_2, StringComparison.OrdinalIgnoreCase)), "Step 2 - There was an error with verifying the expected error message");
+                                var getUserRequestParameters = new UsersResource.GetUserRequestParameters
+                                {
+                                    Select = "*",
+                                    ActualValues = "true",
+                                    Id = Rm.Users[0]
+                                };
+                                var userDataContract = Users.Get(getUserRequestParameters);
+                                userDataContract.Roles = new InheritableConfigurationIdCollectionDataContract { ActualValue = new List<ConfigurationIdDataContract>() };
+                                userDataContract.Workgroups = new List<ConfigurationIdDataContract>();
+
+                                // udpate the user
+                                Users.Set(userDataContract);
+
+                                // Log in
+                                Logon.DoLogon(Rm.Users[0], UserPassword, IcServer, shouldSetStation: false);
+                                ChangeStation.SetStation(_DEFAULT_STATION_TYPE, Rm.Stations[0]);
+                                ChangeStation.ClickChooseStation();
+                                return WaitFor(() => ChangeStation.Get().ChangeStationErrorView.Text.Equals(_EXPECTED_ERROR_MESSAGE_2, StringComparison.OrdinalIgnoreCase));
+                            }, "Step 2 - There was an error with verifying the expected error message");
                         }
                         #endregion
 
