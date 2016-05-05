@@ -5,6 +5,7 @@
     using ININ.Testing.Automation.Core.SeleniumAPI;
     using ININ.Testing.Automation.Core.Utilities;
     using ININ.Testing.Automation.Lib.Common;
+    using ININ.Testing.Automation.Lib.Common.LogonForm;
     using ININ.Testing.Automation.Lib.ResourceManager;
     using ININ.Testing.Automation.ManagedICWS;
     using ININ.Testing.Automation.ManagedICWS.Configuration.People;
@@ -53,8 +54,9 @@
                             TraceTrue(() =>
                             {
                                 WebDriverManager.Instance.SwitchBrowser(Drivers[0]);
-                                Logon.GoToLogon();
-                                return Logon.IsAtServerForm();
+                                var serverForm = new ServerForm();
+                                serverForm.GoTo();
+                                return WaitFor(() => serverForm.Displayed);
                             }, "Step 1 - Couldn't get to the server form.");
                         }
                         #endregion
@@ -78,8 +80,9 @@
                             TraceTrue(() =>
                             {
                                 WebDriverManager.Instance.SwitchBrowser(Drivers[1]);
-                                Logon.GoToLogon();
-                                return Logon.IsAtServerForm();
+                                var serverForm = new ServerForm();
+                                serverForm.GoTo();
+                                return WaitFor(() => serverForm.Displayed);
                             }, "Step 3 - Couldn't get to the server page.");
                         }
                         #endregion
@@ -122,8 +125,9 @@
                             TraceTrue(() =>
                             {
                                 WebDriverManager.Instance.SwitchBrowser(Drivers[2]);
-                                Logon.GoToLogon();
-                                return Logon.IsAtAnyLogonForm();
+                                var serverForm = new ServerForm();
+                                serverForm.GoTo();
+                                return WaitFor(() => serverForm.Displayed);
                             }, "Step 6 - Couldn't get to the Logon page.");
                         }
                         #endregion
@@ -140,8 +144,7 @@
                             TraceTrue(() =>
                             {
                                 WebDriverManager.Instance.SwitchBrowser(Drivers[0]);
-                                return Logoff.IsAtLogoff();
-                                
+                                return WaitFor(() => new LogoffForm().Displayed);
                             }, "User still logged into both stations at the same time");
                         }
                         #endregion
