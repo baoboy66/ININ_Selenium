@@ -5,7 +5,7 @@
     using ININ.Testing.Automation.Core;
     using ININ.Testing.Automation.Core.SeleniumAPI;
     using ININ.Testing.Automation.Core.Utilities;
-    using ININ.Testing.Automation.Lib.Common;
+    using ININ.Testing.Automation.Lib.Common.LogonForm;
     using ININ.Testing.Automation.Lib.ResourceManager;
     using ININ.Testing.Automation.ManagedICWS;
     using ININ.Testing.Automation.ManagedICWS.Configuration.People;
@@ -35,8 +35,10 @@
         /// <summary>
         ///     Logon page object
         /// </summary>
-        private Logon _logon;
 
+        private LogonForm _logonForm;
+        private AuthForm _authForm;
+        private StationForm _stationForm;
         public TC24456()
         {
             TSNum = "2047";
@@ -64,8 +66,7 @@
                                 Drivers = WebDriverManager.Instance.AddDriver(1);
 
                                 // set the Logon object
-                                _logon = Logon.Get();
-
+                                _logonForm = new LogonForm();
                                 return true;
                             }, "Pre run setup failed.");
                         }
@@ -78,16 +79,21 @@
                             //Comment: Currently, the error says: \'The authentication process failed.\'
                             TraceTrue(() =>
                             {
-                                Logon.GoToLogon();
-                                _logon.SetServerForm(IcServer);
-                                _logon.UserIDTextField.SendKeys(_INVALID_ID, true);
-                                _logon.PasswordTextField.SendKeys(UserPassword, true);
-                                _logon.LogonButton.Click();
-                                return WaitFor(() => _logon.IcAuthLogonForm.Displayed);
+                                _logonForm.GoTo();
+                                var serverForm = new ServerForm();
+                                if (WaitFor(() => serverForm.Displayed))
+                                    serverForm.Set(IcServer).Submit();
+
+                                // Set and submit auth form
+                                _authForm = new AuthForm();
+                                if (WaitFor(() => _authForm.Displayed))
+                                    _authForm.Set(_INVALID_ID, UserPassword).LogOn();
+
+                                return WaitFor(() => _authForm.Displayed);
                             }, "Step 1 - IC auth logon form could not be found.");
-                            TraceTrue(() => WaitFor(() => _logon.IcAuthErrorMessageLabel.Displayed), "Step 1 - IC auth error message could not be found.");
-                            TraceTrue(!string.IsNullOrWhiteSpace(_logon.UserIDTextField.Text), "Step 1 - When logging in with an invalid user name, the page just refreshes without displaying an error.");
-                            TraceTrue(() =>_logon.IcAuthErrorMessageLabel.Text.Contains(_EXPECTED_ERROR_MESSAGE), "Step 1 - IC auth logon form could not be found.");
+                            TraceTrue(() => WaitFor(() => !string.IsNullOrWhiteSpace(_authForm.Error)), "Step 1 - IC auth error message could not be found.");
+                            TraceTrue(!string.IsNullOrWhiteSpace(_authForm.User), "Step 1 - When logging in with an invalid user name, the page just refreshes without displaying an error.");
+                            TraceTrue(() => _authForm.Error.Equals(_EXPECTED_ERROR_MESSAGE), "Step 1 - IC auth logon form could not be found.");
                         }
                         #endregion
 
@@ -98,14 +104,13 @@
                             //Comment: Currently, the error says: \'The authentication process failed.\'
                             TraceTrue(() =>
                             {
-                                _logon.UserIDTextField.SendKeys(Rm.Users[0], true);
-                                _logon.PasswordTextField.SendKeys(_INVALID_ID, true);
-                                _logon.LogonButton.Click();
-                                return WaitFor(() => _logon.IcAuthLogonForm.Displayed);
+                                // Set and submit auth form
+                                _authForm.Set(_INVALID_ID, UserPassword).LogOn();
+                                return WaitFor(() => _authForm.Displayed);
                             }, "Step 2 - IC auth logon form could not be found.");
-                            TraceTrue(() => WaitFor(() => _logon.IcAuthErrorMessageLabel.Displayed), "Step 2 - IC auth error message could not be found.");
-                            TraceTrue(!string.IsNullOrWhiteSpace(_logon.UserIDTextField.Text), "Step 2 - When logging in with an invalid user name, the page just refreshes without displaying an error.");
-                            TraceTrue(() =>_logon.IcAuthErrorMessageLabel.Text.Contains(_EXPECTED_ERROR_MESSAGE), "Step 2 - The error message was not found or incorrect for password");
+                            TraceTrue(() => WaitFor(() => !string.IsNullOrWhiteSpace(_authForm.Error)), "Step 2 - IC auth error message could not be found.");
+                            TraceTrue(!string.IsNullOrWhiteSpace(_authForm.User), "Step 2 - When logging in with an invalid user name, the page just refreshes without displaying an error.");
+                            TraceTrue(() => _authForm.Error.Equals(_EXPECTED_ERROR_MESSAGE), "Step 2 - IC auth logon form could not be found.");
                         }
                         #endregion
 
@@ -115,10 +120,10 @@
                             //Step 3 Verify: The station selection page is displayed.
                             TraceTrue(() =>
                             {
-                                _logon.UserIDTextField.SendKeys(Rm.Users[0], true);
-                                _logon.PasswordTextField.SendKeys(UserPassword, true);
-                                _logon.LogonButton.Click();
-                                return ChangeStation.ChangeStationViewIsShown();
+                                // Set and submit auth form
+                                _authForm.Set(Rm.Users[0], UserPassword).LogOn();
+                                _stationForm = new StationForm();
+                                return WaitFor(() => _stationForm.Displayed);
                             }, "Step 3 - The change station view was not shown.");
                         }
                         #endregion
@@ -130,10 +135,8 @@
                             //Comment: Currently, the error says: \'The specified station name is invalid.\'
                             TraceTrue(() =>
                             {
-                                ChangeStation.SetStation(_DEFAULT_STATION_TYPE, _INVALID_ID);
-                                ChangeStation.ClickChooseStation();
-                                var changeStation = ChangeStation.Get();
-                                return WaitFor(() => changeStation.ChangeStationErrorView.Text.Contains(_EXPECTED_INVALID_STATION_ERROR_MESSAGE));
+                                _stationForm.Set(_INVALID_ID).Submit();
+                                return WaitFor(() => _stationForm.Error.Equals(_EXPECTED_INVALID_STATION_ERROR_MESSAGE));
                             }, "Step 4 - The error message was not found for invalid station name.");
                         }
                         #endregion

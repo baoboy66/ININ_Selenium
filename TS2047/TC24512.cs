@@ -9,7 +9,7 @@
     using ININ.Testing.Automation.Core;
     using ININ.Testing.Automation.Core.SeleniumAPI;
     using ININ.Testing.Automation.Core.Utilities;
-    using ININ.Testing.Automation.Lib.Common;
+    using ININ.Testing.Automation.Lib.Common.LogonForm;
     using ININ.Testing.Automation.Lib.ResourceManager;
     using ININ.Testing.Automation.ManagedICWS;
     using ININ.Testing.Automation.ManagedICWS.Configuration.Hardware;
@@ -25,9 +25,20 @@
         /// <summary>
         ///     String object used to hold the expected error message for each step
         /// </summary>
-        private const string _EXPECTED_ERROR_MESSAGE = "You were logged off because there was a problem connecting to the specified station.";
+        private const string _EXPECTED_ERROR_MESSAGE = "The following licenses were not available: I3_ACCESS_CLIENT";
         private const string _EXPECTED_ERROR_MESSAGE_2 = "You are not allowed to log on to this station.";
 
+        /// <summary>
+        ///     Logon page object
+        /// </summary>
+        private LogonForm _logonForm;
+        private AuthForm _authForm;
+        private StationForm _stationForm;
+
+        /// <summary>
+        ///     Logon page object
+        /// </summary>
+        private LogoffForm _logoffForm;
         public TC24512()
         {
             TSNum = "2047";
@@ -62,6 +73,7 @@
                                     Select = "*",
                                     Id = Rm.Stations[0]
                                 };
+                              
                                 var stationDataContract = Stations.Get(getStationRequestParameters);
                                 if (stationDataContract.StationLicensePropertiesHasValue == false)
                                 {
@@ -76,6 +88,9 @@
                                     // udpate the station
                                     Stations.Set(stationDataContract);
                                 }
+
+                                // set logon object
+                                _logonForm = new LogonForm();
                                 return true;
                             }, "Pre run setup failed.");
 
@@ -87,18 +102,31 @@
                         {
                             //Step 1 Verify: An error appears at the top of the form.
                             //Comment: The station and user both cannot have the license.  Currently, the error says: \'You were logged off because there was a problem connecting to the specified station. The following licenses were not available: I3_ACCESS_CLIENT.\'
+
                             TraceTrue(() =>
                             {
-                                Logon.DoLogon(Rm.Users[0], UserPassword, IcServer, shouldSetStation: false);
-                                ChangeStation.SetStation(_DEFAULT_STATION_TYPE, Rm.Stations[0]);
-                                ChangeStation.ClickChooseStation();
-                                return Logoff.IsAtLogoff();
+                                _logonForm.GoTo();
+                                var serverForm = new ServerForm();
+                                if (WaitFor(() => serverForm.Displayed))
+                                    serverForm.Set(IcServer).Submit();
+
+                                // Set and submit auth form
+                                _authForm = new AuthForm();
+                                if (WaitFor(() => _authForm.Displayed))
+                                    _authForm.Set(Rm.Users[0], UserPassword).LogOn();
+
+                                // Set station and submit 
+                                _stationForm = new StationForm();
+                                if (WaitFor(() => _stationForm.Displayed))
+                                    _stationForm.Set(Rm.Stations[0]).Submit();
+
+                                _logoffForm = new LogoffForm();
+                                return WaitFor(() => _logoffForm.Displayed);
                             }, "Step 1 - The user is not at the logoff view.");
 
                             TraceTrue(() =>
                             {
-                                var logoff = Logoff.Get();
-                                return WaitFor(() => logoff.MessageElement.Text.Contains(_EXPECTED_ERROR_MESSAGE));
+                                return WaitFor(() => _logoffForm.Error.Equals(_EXPECTED_ERROR_MESSAGE));
                             }, "Step 1 - There was an error with verifying the error message");
                         }
                         #endregion
@@ -109,11 +137,8 @@
                             //Step 2 Verify: An error appears at the top of the form.
                             TraceTrue(() =>
                             {
-                                Logoff.Get().ReturnToLogonButton.Click();
-
                                 // Enable Client Access License
                                 Users.SetClientAccessLicense(Rm.Users[0], true);
-
                                 // remove the ability to Logon to the station
                                 // to get around possible inheritance of ACLs, we will 
                                 // just remove all role and workgroups
@@ -129,14 +154,26 @@
                                 userDataContract.Roles = new InheritableConfigurationIdCollectionDataContract { ActualValue = new List<ConfigurationIdDataContract>() };
                                 userDataContract.Workgroups = new List<ConfigurationIdDataContract>();
 
-                                // udpate the user
+                                // udpate the user's license
                                 Users.Set(userDataContract);
 
+                                return true;
+                            }, "Step 2- Update user's license failed.");
+
+                            TraceTrue(() =>
+                            {
+
                                 // Log in
-                                Logon.DoLogon(Rm.Users[0], UserPassword, IcServer, shouldSetStation: false);
-                                ChangeStation.SetStation(_DEFAULT_STATION_TYPE, Rm.Stations[0]);
-                                ChangeStation.ClickChooseStation();
-                                return WaitFor(() => ChangeStation.Get().ChangeStationErrorView.Text.Equals(_EXPECTED_ERROR_MESSAGE_2, StringComparison.OrdinalIgnoreCase));
+                                _logoffForm.Return();
+                                _authForm = new AuthForm();
+                                if (WaitFor(() => _authForm.Displayed))
+                                    _authForm.Set(Rm.Users[0], UserPassword).LogOn();
+
+                                // Set station and submit 
+                                _stationForm = new StationForm();
+                                if (WaitFor(() => _stationForm.Displayed))
+                                    _stationForm.Set(Rm.Stations[0]).Submit();
+                                return WaitFor(() => _stationForm.Error.Equals(_EXPECTED_ERROR_MESSAGE_2, StringComparison.OrdinalIgnoreCase));
                             }, "Step 2 - There was an error with verifying the expected error message");
                         }
                         #endregion
