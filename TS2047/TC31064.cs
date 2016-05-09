@@ -5,7 +5,7 @@
     using ININ.Testing.Automation.Core;
     using ININ.Testing.Automation.Core.SeleniumAPI;
     using ININ.Testing.Automation.Core.Utilities;
-    using ININ.Testing.Automation.Lib.Common;
+    using ININ.Testing.Automation.Lib.Common.LogonForm;
     using ININ.Testing.Automation.Tcdb;
     using Xunit;
 
@@ -14,15 +14,6 @@
     /// </summary>
     public class TC31064 : ClientTestCase
     {
-        #region Constructors and Destructors
-        public TC31064()
-        {
-            this.TSNum = "2047";
-            this.TCNum = "31064.5";
-        }
-        #endregion
-
-        #region  Constants and Fields
         /// <summary>
         ///     Expected error message
         /// </summary>
@@ -31,12 +22,14 @@
         /// <summary>
         ///     Logon page object
         /// </summary>
-        private Logon _logon;
+        private LogonForm _logon;
 
-        private WebDriverBaseWait _wait;
-        #endregion
+        public TC31064()
+        {
+            TSNum = "2047";
+            TCNum = "31064.5";
+        }
 
-        #region Public Methods and Operators
         public override void Run()
         {
             using (Trace.TestCase.scope())
@@ -48,55 +41,60 @@
                     #region Pre Run Setup
                     using (Trace.TestCase.scope("Pre Run Setup"))
                     {
-                        this.Drivers = WebDriverManager.Instance.AddDriver(1);
-
-                        this._wait = new WebDriverBaseWait();
-                        this._wait.IgnoreExceptionTypes(typeof (StaleElementReferenceException));
-
-                        SetLoginAuthentication(new LoginAuthenticationDataContract
+                        TraceTrue(() =>
                         {
-                            DisableAlternateWindowsAuth = false,
-                            DisableCachedCredentials = false,
-                            DisableIcAuth = true,
-                            DisableSingleSignOn = true,
-                            DisableWindowsAuth = false
-                        });
+                            // Get driver(s)
+                            Drivers = WebDriverManager.Instance.AddDriver(1);
+
+                            SetLoginAuthentication(new LoginAuthenticationDataContract
+                            {
+                                DisableAlternateWindowsAuth = false,
+                                DisableCachedCredentials = false,
+                                DisableIcAuth = true,
+                                DisableSingleSignOn = true,
+                                DisableWindowsAuth = false
+                            });
+
+                            return true;
+                        }, "Pre run setup failed.");
                     }
                     #endregion
 
                     #region STEP 1: Navigate to the Web Client logon page.
                     using (Trace.TestCase.scope("Step 1: Navigate to the Web Client logon page."))
                     {
-                        this._logon = Logon.Get();
-
-                        Logon.GoToLogon();
-
-                        this._logon.SetServerForm(this.IcServer);
-
                         //Step 1 Verify: The user under test is denied access with an error message.
                         //Comment: \'None of the server\'s accepted logon types are supported by this application. You will not be able to log on. Check your server selection again, and contact your administrator if problems persist.
-                        this._wait.Until(_ => this._logon.ServerErrorMessageLabel.Exists);
-                        this.TraceTrue(this._logon.ServerErrorMessageLabel.Text == _ALLOW_IC_AUTH_DISABLED_ERROR, "The error message was not presented.");
+                        TraceTrue(() =>
+                        {
+                            _logon = new LogonForm();
+                            _logon.GoTo();
+                            var serverForm = new ServerForm();
+                            WaitFor(() => serverForm.Displayed);
+                            serverForm.Set(IcServer);
+                            serverForm.Submit();
+                            return WaitFor(() => !string.IsNullOrWhiteSpace(serverForm.Error) && serverForm.Error.Equals(_ALLOW_IC_AUTH_DISABLED_ERROR));
+                        }, "The error message was not presented.");
                     }
                     #endregion
 
-                    this.Passed = true;
+                    Passed = true;
                 }
                 catch (KnownScrException exception)
                 {
                     Graphics.TakeScreenshot();
-                    this.TraceTrue(
+                    TraceTrue(
                         false,
                         "Failed due to known SCR: " + exception.SCR + ". SCR Description: " + exception.Message,
                         exception.SCR);
-                    this.Passed = false;
+                    Passed = false;
                     throw;
                 }
                 catch (Exception e)
                 {
                     Graphics.TakeScreenshot();
                     Trace.TestCase.exception(e);
-                    this.Passed = false;
+                    Passed = false;
                     throw;
                 }
                 finally
@@ -104,9 +102,9 @@
                     // Perform an HTML Dump into i3trace.
                     Trace.TestCase.always("Html dump: \n{}", WebDriverManager.Instance.HtmlDump);
 
-                    this.Attributes.Add(TestCaseAttribute.WebBrowser_Desktop, WebDriverManager.Instance.GetBrowserVersion());
-                    TCDBResults.SendResultsToXml(this.TCNum, this.Passed, this.SCRs, this.Stopwatch.Elapsed.TotalSeconds, this.Attributes);
-                    TCDBResults.SubmitResult(this.TCNum, this.Passed, this.SCRs, attributes: this.Attributes);
+                    Attributes.Add(TestCaseAttribute.WebBrowser_Desktop, WebDriverManager.Instance.GetBrowserVersion());
+                    TCDBResults.SendResultsToXml(TCNum, Passed, SCRs, Stopwatch.Elapsed.TotalSeconds, Attributes);
+                    TCDBResults.SubmitResult(TCNum, Passed, SCRs, attributes: Attributes);
 
                     #region Cleanup
                     using (Trace.TestCase.scope("Post Run Clean Up"))
@@ -133,11 +131,11 @@
         {
             try
             {
-                this.Run();
+                Run();
             }
             catch (Exception e)
             {
-                if (this.Passed)
+                if (Passed)
                 {
                     Trace.TestCase.exception(e, "Cleanup threw an exception. Make sure you are using ICWS APIs to do cleanup.");
                 }
@@ -148,6 +146,5 @@
                 }
             }
         }
-        #endregion
     }
 }
