@@ -5,9 +5,11 @@
     using ININ.Testing.Automation.Core;
     using ININ.Testing.Automation.Core.SeleniumAPI;
     using ININ.Testing.Automation.Core.Utilities;
-    using ININ.Testing.Automation.Lib.Common;
-    using ININ.Testing.Automation.Lib.Common.Storage;
+    using ININ.Testing.Automation.Lib.Client.Queues.MyInteractions;
+    using ININ.Testing.Automation.Lib.Common.LogonForm;
     using ININ.Testing.Automation.Lib.ResourceManager;
+    using ININ.Testing.Automation.ManagedICWS;
+    using ININ.Testing.Automation.ManagedICWS.Configuration.People;
     using ININ.Testing.Automation.Tcdb;
     using Xunit;
 
@@ -16,106 +18,133 @@
     /// </summary>
     public class TC36657 : ClientTestCase
     {
-        #region Constructors and Destructors
+        private LogonForm _logon;
+        private AuthForm _authForm;
+        private MyInteractionsView _interactionsView;
+
         public TC36657()
         {
-            this.TSNum = "2047";
-            this.TCNum = "36657.2";
+            TSNum = "2047";
+            TCNum = "36657.2";
         }
-        #endregion
 
-        #region Public Methods and Operators
         public override void Run()
         {
             using (Trace.TestCase.scope())
             {
-                using (this.Rm = ResourceManagerRuntime.AllocateResources(1, 1))
+                using (Rm = ResourceManagerRuntime.AllocateResources(1, 2))
                 {
                     try
                     {
-                        Logon logon;
-
                         #region Pre Run Setup
                         using (Trace.TestCase.scope("Pre Run Setup"))
                         {
-                            // make sure the user is added to the right role.
-                            SetUserDefaultRole(this.Rm.Users);
+                            TraceTrue(() =>
+                            {
+                                // make sure the user is added to the right role.
+                                Users.SetRole(Rm.Users[0], _DEFAULT_ROLE);
+                                Status.Set(Rm.Users[0], "Available");
 
-                            this.Drivers = WebDriverManager.Instance.AddDriver(this.Rm.Users.Count);
-
-                            SetLoginAuthentication(null);
-                            logon = Logon.Get();
-                            Logon.GoToLogon();
+                                // get drivers for the test.
+                                Drivers = WebDriverManager.Instance.AddDriver(1);
+                                return true;
+                            }, "Pre run setup failed.");
                         }
                         #endregion
 
                         #region STEP 1: Log on with appropriate server name, user ID, password and station select to persist each selection.
                         using (Trace.TestCase.scope("Step 1: Log on with appropriate server name, user ID, password and station select to persist each selection."))
                         {
-                            logon.SetServerForm(this.IcServer, true);
-                            logon.UserIDTextField.SendKeys(this.Rm.Users[0], true);
-                            logon.PasswordTextField.SendKeys(this.UserPassword, true);
-                            logon.RememberIcAuthCheckBox.Click(true);
-                            logon.LogonButton.Click();
-                            ChangeStation.SetStation(_DEFAULT_STATION_TYPE, this.Rm.Stations[0], saveStation: true);
-                            ChangeStation.ClickChooseStation();
                             //Step 1 Verify: User is logged on to Interaction Connect.
-                            this.TraceTrue(NavBar.Get().CanFindNavbarMenuToggleButton(), "The user was not logged on");
+                            TraceTrue(() =>
+                            {
+                                WebDriverManager.Instance.SwitchBrowser(Drivers[0]);
+                                _logon = new LogonForm();
+                                _logon.GoTo();
+
+                                // set and submit server form
+                                var serverForm = new ServerForm();
+                                if (WaitFor(() => serverForm.Displayed))
+                                {
+                                    serverForm.SaveServer = true;
+                                    serverForm.Set(IcServer).Submit();
+                                }
+
+                                // Set and submit auth form
+                                _authForm = new AuthForm();
+                                if (WaitFor(() => _authForm.Displayed))
+                                {
+                                    _authForm.RememberUser = true;
+                                    _authForm.Set(Rm.Users[0], UserPassword).LogOn();
+                                }
+                                // Set and submit station form
+                                var station = new StationForm();
+                                if (WaitFor(() => station.Displayed))
+                                {
+                                    station.RememberStation = true;
+                                    station.Set(Rm.Stations[0]).Submit();
+                                }
+                                _interactionsView = new MyInteractionsView();
+                                return WaitFor(() => _interactionsView.Displayed);
+                            }, "Step 1 - The user was not logged on");
                         }
                         #endregion
 
                         #region STEP 2: Log off.
                         using (Trace.TestCase.scope("Step 2: Log off."))
                         {
-                            NavBar.ApplicationLogout();
                             //Step 2 Verify: Log off page is displayed.
-                            this.TraceTrue(Logoff.IsAtLogoff(), "The user was not logged off.");
+                            TraceTrue(UserLogoff, "Step 2 - The user did not logout as expected.");
                         }
                         #endregion
 
                         #region STEP 3: Close and open the browser window and navigate to Interaction Connect.
                         using (Trace.TestCase.scope("Step 3: Close and open the browser window and navigate to Interaction Connect."))
                         {
+                            // Step 3 Reopen the browser
                             // Do the best emulation of reopening the browser
-                            Util.PageRefresh();
-                            Logon.GoToLogon();
-                            BrowserStorage.Get().Session.Clear();
-                            Util.PageRefresh();
-                            Logon.GoToLogon();
-                            //Step 3 Verify: The server selection should be bypassed and the user authentication page should be displayed with the user ID selection persisted.
-                            this.TraceTrue(Logon.IsAtIcAuthForm(), "User is not at IC auth form");
-                            this.TraceTrue(logon.UserIDTextField.Text == this.Rm.Users[0], "User ID not remembered");
-                            this.TraceTrue(logon.RememberIcAuthCheckBox.Selected, "The checkbox to remember the user ID was not selected.");
+                            TraceTrue(() =>
+                            {
+                                WebDriverManager.Instance.CurrentDriver.RefreshPage();
+                                _logon.GoTo();
+                                return WaitFor(() => _authForm.Displayed);
+                            }, "Step 3 - The user was not logged on");
+
+                            TraceTrue(() => WaitFor(() => _authForm.User.Equals(Rm.Users[0])), "Step 3 - User ID not remembered");
+                            TraceTrue(() => WaitFor(() => _authForm.RememberUser), "Step 3 - The checkbox to remember the user ID was not selected.");
                         }
                         #endregion
 
                         #region STEP 4: Proceed.
                         using (Trace.TestCase.scope("Step 4: Proceed."))
                         {
-                            logon.PasswordTextField.SendKeys(this.UserPassword, true);
-                            logon.LogonButton.Click();
                             //Step 4 Verify: Station selection page is bypassed and user is logged on to Interaction Connect.
-                            this.TraceTrue(NavBar.Get().CanFindNavbarMenuToggleButton(), "The user was not logged on the 2nd time");
+                            TraceTrue(() =>
+                            {
+                                // Set and submit auth form
+                                _authForm.Set(Rm.Users[0], UserPassword).LogOn();
+                                return WaitFor(() => _interactionsView.Displayed);
+                            }, "Step 4 - The user was not logged on the 2nd time");
                         }
                         #endregion
 
-                        this.Passed = true;
+                        Passed = true;
                     }
                     catch (KnownScrException exception)
                     {
                         Graphics.TakeScreenshot();
-                        this.TraceTrue(
+                        TraceTrue(
                             false,
                             "Failed due to known SCR: " + exception.SCR + ". SCR Description: " + exception.Message,
                             exception.SCR);
-                        this.Passed = false;
+                        Passed = false;
                         throw;
                     }
                     catch (Exception e)
                     {
                         Graphics.TakeScreenshot();
                         Trace.TestCase.exception(e);
-                        this.Passed = false;
+                        Passed = false;
                         throw;
                     }
                     finally
@@ -123,9 +152,9 @@
                         // Perform an HTML Dump into i3trace.
                         Trace.TestCase.always("Html dump: \n{}", WebDriverManager.Instance.HtmlDump);
 
-                        this.Attributes.Add(TestCaseAttribute.WebBrowser_Desktop, WebDriverManager.Instance.GetBrowserVersion());
-                        TCDBResults.SendResultsToXml(this.TCNum, this.Passed, this.SCRs, this.Stopwatch.Elapsed.TotalSeconds, this.Attributes);
-                        TCDBResults.SubmitResult(this.TCNum, this.Passed, this.SCRs, attributes: this.Attributes);
+                        Attributes.Add(TestCaseAttribute.WebBrowser_Desktop, WebDriverManager.Instance.GetBrowserVersion());
+                        TCDBResults.SendResultsToXml(TCNum, Passed, SCRs, Stopwatch.Elapsed.TotalSeconds, Attributes);
+                        TCDBResults.SubmitResult(TCNum, Passed, SCRs, attributes: Attributes);
 
                         #region Cleanup
                         using (Trace.TestCase.scope("Post Run Clean Up"))
@@ -153,11 +182,11 @@
         {
             try
             {
-                this.Run();
+                Run();
             }
             catch (Exception e)
             {
-                if (this.Passed)
+                if (Passed)
                 {
                     Trace.TestCase.exception(e, "Cleanup threw an exception. Make sure you are using ICWS APIs to do cleanup.");
                 }
@@ -168,6 +197,5 @@
                 }
             }
         }
-        #endregion
     }
 }
