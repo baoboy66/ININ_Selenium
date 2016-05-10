@@ -6,8 +6,11 @@
     using ININ.Testing.Automation.Core;
     using ININ.Testing.Automation.Core.SeleniumAPI;
     using ININ.Testing.Automation.Core.Utilities;
-    using ININ.Testing.Automation.Lib.Common;
+    using ININ.Testing.Automation.Lib.Client.Navbar;
+    using ININ.Testing.Automation.Lib.Client.Queues.MyInteractions;
+    using ININ.Testing.Automation.Lib.Common.LogonForm;
     using ININ.Testing.Automation.Lib.ResourceManager;
+    using ININ.Testing.Automation.ManagedICWS;
     using ININ.Testing.Automation.ManagedICWS.Configuration.People;
     using ININ.Testing.Automation.Tcdb;
     using Xunit;
@@ -17,94 +20,124 @@
     /// </summary>
     public class TC36663 : ClientTestCase
     {
-        #region Constructors and Destructors
+        /// <summary>
+        ///     Logon page object
+        /// </summary>
+        private LogonForm _logon;
+
+        private StationForm _station;
+
         public TC36663()
         {
-            this.TSNum = "2047";
-            this.TCNum = "36663.3";
+            TSNum = "2047";
+            TCNum = "36663.3";
         }
-        #endregion
 
-        #region Public Methods and Operators
         public override void Run()
         {
             using (Trace.TestCase.scope())
             {
-                using (this.Rm = ResourceManagerRuntime.AllocateResources(1, 1))
+                using (Rm = ResourceManagerRuntime.AllocateResources(1, 1))
                 {
                     try
                     {
                         #region Pre Run Setup
                         using (Trace.TestCase.scope("Pre Run Setup"))
                         {
-                            SetUserDefaultRole(this.Rm.Users);
-
-                            // Setting the default workstation
-                            Users.Set(new UserDataContract
+                            TraceTrue(() =>
                             {
-                                ConfigurationId = new ConfigurationIdDataContract
-                                {
-                                    Id = this.Rm.Users[0]
-                                },
-                                DefaultWorkstation = new ConfigurationIdDataContract
-                                {
-                                    Id = this.Rm.Stations[0]
-                                }
-                            });
+                                // make sure the user is added to the right role.
+                                Users.SetRole(Rm.Users[0], _DEFAULT_ROLE);
+                                Status.Set(Rm.Users[0], "Available");
 
-                            this.Drivers = WebDriverManager.Instance.AddDriver(this.Rm.Users.Count);
+                                // Setting the default workstation
+                                Users.Set(new UserDataContract
+                                {
+                                    ConfigurationId = new ConfigurationIdDataContract
+                                    {
+                                        Id = Rm.Users[0]
+                                    },
+                                    DefaultWorkstation = new ConfigurationIdDataContract
+                                    {
+                                        Id = Rm.Stations[0]
+                                    }
+                                });
+                                // get driver for the test.
+                                Drivers = WebDriverManager.Instance.AddDriver(Rm.Users.Count);
 
-                            Logon.GoToLogon();
+                                // Go to logon page
+                                _logon = new LogonForm();
+                                _logon.GoTo();
+                                return true;
+                            }, "Pre run setup failed.");
                         }
                         #endregion
 
                         #region STEP 1: Enter the appropriate server name, user ID and proceed.
                         using (Trace.TestCase.scope("Step 1: Enter the appropriate server name, user ID and proceed."))
                         {
-                            Logon.Get().SetServerForm(this.IcServer);
-                            Logon.SetIcAuthForm(this.Rm.Users[0], this.UserPassword);
-                            Logon.Get().LogonButton.Click();
                             //Step 1 Verify: The station selection page is displayed and the Default Station information is correct.
-                            this.TraceTrue(ChangeStation.ChangeStationViewIsShown(), "The change station view was not shown.");
+                            TraceTrue(() =>
+                            {
+                                // set and submit server form
+                                var serverForm = new ServerForm();
+                                if (WaitFor(() => serverForm.Displayed))
+                                    serverForm.Set(IcServer).Submit();
+
+                                // Set and submit auth form
+                                var authForm = new AuthForm();
+                                if (WaitFor(() => authForm.Displayed))
+                                    authForm.Set(Rm.Users[0], UserPassword).LogOn();
+
+                                _station = new StationForm();
+                                return WaitFor(() => _station.Displayed);
+                            }, "Step 1 - The change station form was not shown.");
                         }
                         #endregion
 
                         #region STEP 2: Choose station and proceed.
                         using (Trace.TestCase.scope("Step 2: Choose station and proceed."))
                         {
-                            ChangeStation.ClickChooseStation();
                             //Step 2 Verify: User is logged on to Interaction Connect.
-                            this.TraceTrue(Util.HasStation(), "The user does not have a station");
-                            this.TraceTrue(NavBar.Get().CanFindNavbarMenuToggleButton(), "The user was not logged on.");
+                            TraceTrue(() =>
+                            {
+                                _station.Submit();
+                                var interation = new MyInteractionsView();
+                                return WaitFor(() => interation.Displayed);
+                            }, "Step 2 - User is not logged on.");
                         }
                         #endregion
 
                         #region STEP 3: Navigate to the user configuration menu.
                         using (Trace.TestCase.scope("Step 3: Navigate to the user configuration menu."))
                         {
-                            NavBar.Get().NavbarMenuToggleButton.Click();
                             //Step 3 Verify: Default Station name is displayed and will match what was selected at the station selection page.
-                            this.TraceTrue(NavBar.Get().StationLabel.Text == this.Rm.Stations[0], "The user is not connected to the right station.");
+                            TraceTrue(() =>
+                            {
+                                var menu = new UserMenuPopover();
+                                menu.Toggle();
+                                return WaitFor(() => menu.Station.Equals(Rm.Stations[0]));
+                            }, "Step 3 - The user is not connected to the right station.");
                         }
                         #endregion
 
-                        this.Passed = true;
+                        Passed = true;
                     }
                     catch (KnownScrException exception)
                     {
                         Graphics.TakeScreenshot();
-                        this.TraceTrue(
+                        TraceTrue(
                             false,
                             "Failed due to known SCR: " + exception.SCR + ". SCR Description: " + exception.Message,
                             exception.SCR);
-                        this.Passed = false;
+                        Passed = false;
                         throw;
                     }
                     catch (Exception e)
                     {
                         Graphics.TakeScreenshot();
                         Trace.TestCase.exception(e);
-                        this.Passed = false;
+                        Passed = false;
                         throw;
                     }
                     finally
@@ -112,9 +145,9 @@
                         // Perform an HTML Dump into i3trace.
                         Trace.TestCase.always("Html dump: \n{}", WebDriverManager.Instance.HtmlDump);
 
-                        this.Attributes.Add(TestCaseAttribute.WebBrowser_Desktop, WebDriverManager.Instance.GetBrowserVersion());
-                        TCDBResults.SendResultsToXml(this.TCNum, this.Passed, this.SCRs, this.Stopwatch.Elapsed.TotalSeconds, this.Attributes);
-                        TCDBResults.SubmitResult(this.TCNum, this.Passed, this.SCRs, attributes: this.Attributes);
+                        Attributes.Add(TestCaseAttribute.WebBrowser_Desktop, WebDriverManager.Instance.GetBrowserVersion());
+                        TCDBResults.SendResultsToXml(TCNum, Passed, SCRs, Stopwatch.Elapsed.TotalSeconds, Attributes);
+                        TCDBResults.SubmitResult(TCNum, Passed, SCRs, attributes: Attributes);
                     }
                 }
             }
@@ -128,11 +161,11 @@
         {
             try
             {
-                this.Run();
+                Run();
             }
             catch (Exception e)
             {
-                if (this.Passed)
+                if (Passed)
                 {
                     Trace.TestCase.exception(e, "Cleanup threw an exception. Make sure you are using ICWS APIs to do cleanup.");
                 }
@@ -143,6 +176,5 @@
                 }
             }
         }
-        #endregion
     }
 }
