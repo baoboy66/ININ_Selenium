@@ -4,29 +4,29 @@
     using ININ.Testing.Automation.Core;
     using ININ.Testing.Automation.Core.SeleniumAPI;
     using ININ.Testing.Automation.Core.Utilities;
-    using ININ.Testing.Automation.Lib.Common.LogonForm;
+    using ININ.Testing.Automation.Lib.Common;
     using ININ.Testing.Automation.Lib.ResourceManager;
+    using ININ.Testing.Automation.ManagedICWS;
+    using ININ.Testing.Automation.ManagedICWS.Configuration.People;
     using ININ.Testing.Automation.Tcdb;
     using Xunit;
 
     /// <summary>
-    ///     TC25856 - Return to the server selection page
+    ///     TC22025 - Valid Workstation Logon/Logout
     /// </summary>
-    public class TC25856 : ClientTestCase
+    public class TC22025 : ClientTestCase
     {
-        private LogonForm _logon;
-        private ServerForm _serverForm;
-
-        public TC25856()
+        public TC22025()
         {
             TSNum = "2047";
-            TCNum = "25856.1";
+            TCNum = "22025.6";
         }
 
         public override void Run()
         {
             using (Trace.TestCase.scope())
             {
+                // 1 User (User under test), 1 Station (User under test)
                 using (Rm = ResourceManagerRuntime.AllocateResources(1, 1))
                 {
                     try
@@ -36,42 +36,47 @@
                         {
                             TraceTrue(() =>
                             {
-                                // get drivers for the test.
-                                Drivers = WebDriverManager.Instance.AddDriver(1);
+                                // make sure the user is added to the right role.
+                                Users.SetRole(Rm.Users[0], _DEFAULT_ROLE);
+                                Status.Set(Rm.Users[0], "Available");
 
-                                // initialize logon object
-                                _logon = new LogonForm();
+                                // Get driver(s)
+                                Drivers = WebDriverManager.Instance.AddDriver(1);
                                 return true;
                             }, "Pre run setup failed.");
                         }
                         #endregion
 
-                        #region STEP 1: From the server selection page, selection of the servers and select Choose Server.
-                        using (Trace.TestCase.scope("Step 1: From the server selection page, selection of the servers and select Choose Server."))
+                        #region STEP 1: Logon User1 with Station1.
+                        using (Trace.TestCase.scope("Step 1: Logon User1 with Station1."))
                         {
-                            //Step 1 Verify: The user advances to the login page.
+                            //Step 1 Verify: The use is successfully logged in.
+                            //TraceTrue(UserLogon(Rm.Users[0], Rm.Stations[0]), "The user did not Logon as expected.");
                             TraceTrue(() =>
                             {
-                                _logon.GoTo();
-                                _serverForm = new ServerForm();
-                                WaitFor(() => _serverForm.Displayed);
-                                _serverForm.Set(IcServer);
-                                _serverForm.Submit();
-                                var authForm = new AuthForm();
-                                return WaitFor(() => authForm.Displayed);
-                            }, "Step 1 - The user didn't go to the IC auth form.");
+                                UserLogon(Rm.Users[0], Rm.Stations[0]);
+                                return WaitFor(() => Util.IsLoggedIn());
+                            }, "The user did not Logon as expected.");
                         }
                         #endregion
 
-                        #region STEP 2: Click on the servername link.
-                        using (Trace.TestCase.scope("Step 2: Click on the servername link."))
+                        #region STEP 2: Refresh the page.
+                        using (Trace.TestCase.scope("Step 2: Refresh the page."))
                         {
-                            //Step 2 Verify: The user is returned to the server selection page.
-                            TraceTrue(() =>
-                            {
-                                _logon.GoBackToServerForm();
-                                return WaitFor(() => _serverForm.Displayed);
-                            }, "Step 2 - The user didn't return to the server selection page.");
+                            WebDriverManager.Instance.CurrentDriver.RefreshPage();
+                            //NOTE: Connect prompts for confirmation before a page refresh
+                            WebDriverManager.Instance.CurrentDriver.AcceptAlert();
+
+                            //Step 2 Verify: The user is successfully auto-logged in.
+                            TraceTrue(Util.IsLoggedIn(), "The user did not auto-Logon. If this is run in the grid, there is a good chance that the refresh just took too long and you can safely ignore if it is happening intermittently.  Usually 5 seconds is too long and the session will expire. ");
+                        }
+                        #endregion
+
+                        #region STEP 3: Logout User1.
+                        using (Trace.TestCase.scope("Step 3: Logout User1."))
+                        {
+                            //Step 3 Verify: The user is successfully taken back to the logoff page.
+                            TraceTrue(UserLogoff, "The user did not logout as expected.");
                         }
                         #endregion
 
@@ -96,7 +101,6 @@
                     }
                     finally
                     {
-                        // Perform an HTML Dump into i3trace.
                         Trace.TestCase.always("Html dump: \n{}", WebDriverManager.Instance.HtmlDump);
 
                         Attributes.Add(TestCaseAttribute.WebBrowser_Desktop, WebDriverManager.Instance.GetBrowserVersion());
@@ -110,9 +114,10 @@
         [ConnectFact]
         [Trait("TestSuite", "2047")]
         [Trait("Priority", "P1")]
-        [Trait("BFT", "true")]
+        //[Trait("BFT", "false")]
+        [Trait("BFT", "staging")]
         [Trait("Patch", "true")]
-        public void Test25856_ReturnToTheServerSelectionPage()
+        public void Test22025_ValidWorkstationLogonLogout()
         {
             try
             {

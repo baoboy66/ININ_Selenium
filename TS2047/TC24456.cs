@@ -92,8 +92,8 @@
                                 return WaitFor(() => _authForm.Displayed);
                             }, "Step 1 - IC auth logon form could not be found.");
                             TraceTrue(() => WaitFor(() => !string.IsNullOrWhiteSpace(_authForm.Error)), "Step 1 - IC auth error message could not be found.");
-                            TraceTrue(!string.IsNullOrWhiteSpace(_authForm.User), "Step 1 - When logging in with an invalid user name, the page just refreshes without displaying an error.");
-                            TraceTrue(() => _authForm.Error.Equals(_EXPECTED_ERROR_MESSAGE), "Step 1 - IC auth logon form could not be found.");
+                            TraceTrue(() => WaitFor(() => !string.IsNullOrWhiteSpace(_authForm.User)), "Step 1 - When logging in with an invalid user name, the page just refreshes without displaying an error.");
+                            TraceTrue(() => WaitFor(() => _authForm.Error.Equals(_EXPECTED_ERROR_MESSAGE)), "Step 1 - IC auth logon form could not be found.");
                         }
                         #endregion
 
@@ -109,8 +109,8 @@
                                 return WaitFor(() => _authForm.Displayed);
                             }, "Step 2 - IC auth logon form could not be found.");
                             TraceTrue(() => WaitFor(() => !string.IsNullOrWhiteSpace(_authForm.Error)), "Step 2 - IC auth error message could not be found.");
-                            TraceTrue(!string.IsNullOrWhiteSpace(_authForm.User), "Step 2 - When logging in with an invalid user name, the page just refreshes without displaying an error.");
-                            TraceTrue(() => _authForm.Error.Equals(_EXPECTED_ERROR_MESSAGE), "Step 2 - IC auth logon form could not be found.");
+                            TraceTrue(() => WaitFor(() => !string.IsNullOrWhiteSpace(_authForm.User)), "Step 2 - When logging in with an invalid user name, the page just refreshes without displaying an error.");
+                            TraceTrue(() => WaitFor(() => _authForm.Error.Equals(_EXPECTED_ERROR_MESSAGE)), "Step 2 - IC auth logon form could not be found.");
                         }
                         #endregion
 

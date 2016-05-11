@@ -82,12 +82,16 @@
                                 // set and submit server form
                                 var serverForm = new ServerForm();
                                 if (WaitFor(() => serverForm.Displayed))
+                                {
                                     serverForm.Set(IcServer).Submit();
+                                }
 
                                 // Set and submit auth form
                                 var authForm = new AuthForm();
                                 if (WaitFor(() => authForm.Displayed))
+                                {
                                     authForm.Set(Rm.Users[0], UserPassword).LogOn();
+                                }
 
                                 _station = new StationForm();
                                 return WaitFor(() => _station.Displayed);

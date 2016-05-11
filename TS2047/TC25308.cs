@@ -5,44 +5,46 @@
     using ININ.Testing.Automation.Core;
     using ININ.Testing.Automation.Core.SeleniumAPI;
     using ININ.Testing.Automation.Core.Utilities;
-    using ININ.Testing.Automation.Lib.Common;
+    using ININ.Testing.Automation.Lib.Common.LogonForm;
     using ININ.Testing.Automation.Lib.ResourceManager;
+    using ININ.Testing.Automation.ManagedICWS;
+    using ININ.Testing.Automation.ManagedICWS.Configuration.People;
     using ININ.Testing.Automation.Tcdb;
     using Xunit;
 
     public class TC25308 : ClientTestCase
     {
-        #region Constructors and Destructors
+        private const string _POLISH = "polski";
+        private LogonForm _logon;
+        private const string _INVALID_ID = "fdjskaljfdklsjfdjskla";
+        private const string _EXPECTED_ERROR_MESSAGE = "Proces uwierzytelniania nie powiódł się.";
         public TC25308()
         {
-            this.TSNum = "2047";
-            this.TCNum = "25308.6";
+            TSNum = "2047";
+            TCNum = "25308.6";
         }
-        #endregion
 
-        #region  Constants and Fields
-        private const string _POLISH = "polski";
-        private ChangeLanguage _changeLanguage;
-        private Logon _logon;
-        private WebDriverBaseWait _waiter;
-        #endregion
-
-        #region Public Methods and Operators
         public override void Run()
         {
             using (Trace.TestCase.scope())
             {
-                using (this.Rm = ResourceManagerRuntime.AllocateResources(1, 1))
+                using (Rm = ResourceManagerRuntime.AllocateResources(1, 1))
                 {
                     try
                     {
                         #region Pre Run Setup
                         using (Trace.TestCase.scope("Pre Run Setup"))
                         {
-                            this.Drivers = WebDriverManager.Instance.AddDriver(this.Rm.Users.Count);
-                            this._waiter = new WebDriverBaseWait();
-                            this._waiter.IgnoreExceptionTypes(typeof (StaleElementReferenceException));
-                            SetUserDefaultRole(this.Rm.Users);
+                            TraceTrue(() =>
+                            {
+                                // get driver
+                                Drivers = WebDriverManager.Instance.AddDriver(Rm.Users.Count);
+
+                                // set user role and status
+                                Users.SetRole(Rm.Users[0], _DEFAULT_ROLE);
+                                Status.Set(Rm.Users[0], "Available");
+                                return true;
+                            }, "Pre run setup failed.");
                         }
                         #endregion
 
@@ -51,11 +53,15 @@
                         {
                             //Step 1 Verify: A menu containing available language options is loaded.  All of the appropriate language options are shown in the menu.
                             //Comment: See Notes to determine what should be seen in the menu.
-                            Logon.CanSelectLanguage();
-                            this._changeLanguage = ChangeLanguage.Get();
-
-                            this.TraceTrue(() => { return this._changeLanguage.GetAvailableLanguages().Any(lang => string.Equals(lang, _POLISH, StringComparison.OrdinalIgnoreCase)); }, "Polish was not an option in the list of languages.");
-                            this._changeLanguage.SelectLanguageDropDownItems.ClickItemWithText(_POLISH);
+                            TraceTrue(() =>
+                            {
+                                _logon = new LogonForm();
+                                _logon.GoTo();
+                                var serverForm = new ServerForm();
+                                if (WaitFor(() => serverForm.Displayed))
+                                    serverForm.Set(IcServer).Submit();
+                                return _logon.AvailableLanguages.Any(lang => string.Equals(lang, _POLISH, StringComparison.OrdinalIgnoreCase));
+                            }, "Step 1 -Polish was not an option in the list of languages.");
                         }
                         #endregion
 
@@ -64,28 +70,36 @@
                         {
                             //Step 2 Verify: The login page reloads and the text on the page is now displayed in the language that was selected.
                             //Comment: We basically want to verify here that the page is not being displayed in English.
-                            this._logon = Logon.Get();
-                            this.TraceTrue(() => this._waiter.Until(d => this._logon.SelectLanguageButton.Text.IndexOf(_POLISH, StringComparison.OrdinalIgnoreCase) != -1), "Language was not changed.");
+                            TraceTrue(() => WaitFor(() =>
+                            {
+                                _logon.GoTo();
+                                _logon.SelectedLanguage = _POLISH;
+                                _logon.GoTo();
+                                var authForm = new AuthForm();
+                                authForm.Set(_INVALID_ID, _INVALID_ID).LogOn();
+                                WaitFor(() => authForm.Displayed);
+                                return _logon.SelectedLanguage.Equals(_POLISH) && authForm.Error.Equals(_EXPECTED_ERROR_MESSAGE);
+                            }), "Step 2 - Language was not changed.");
                         }
                         #endregion
 
-                        this.Passed = true;
+                        Passed = true;
                     }
                     catch (KnownScrException exception)
                     {
                         Graphics.TakeScreenshot();
-                        this.TraceTrue(
+                        TraceTrue(
                             false,
                             "Failed due to known SCR: " + exception.SCR + ". SCR Description: " + exception.Message,
                             exception.SCR);
-                        this.Passed = false;
+                        Passed = false;
                         throw;
                     }
                     catch (Exception e)
                     {
                         Graphics.TakeScreenshot();
                         Trace.TestCase.exception(e);
-                        this.Passed = false;
+                        Passed = false;
                         throw;
                     }
                     finally
@@ -93,9 +107,9 @@
                         // Perform an HTML Dump into i3trace.
                         Trace.TestCase.always("Html dump: \n{}", WebDriverManager.Instance.HtmlDump);
 
-                        this.Attributes.Add(TestCaseAttribute.WebBrowser_Desktop, WebDriverManager.Instance.GetBrowserVersion());
-                        TCDBResults.SendResultsToXml(this.TCNum, this.Passed, this.SCRs, this.Stopwatch.Elapsed.TotalSeconds, this.Attributes);
-                        TCDBResults.SubmitResult(this.TCNum, this.Passed, this.SCRs, attributes: this.Attributes);
+                        Attributes.Add(TestCaseAttribute.WebBrowser_Desktop, WebDriverManager.Instance.GetBrowserVersion());
+                        TCDBResults.SendResultsToXml(TCNum, Passed, SCRs, Stopwatch.Elapsed.TotalSeconds, Attributes);
+                        TCDBResults.SubmitResult(TCNum, Passed, SCRs, attributes: Attributes);
                     }
                 }
             }
@@ -110,11 +124,11 @@
         {
             try
             {
-                this.Run();
+                Run();
             }
             catch (Exception e)
             {
-                if (this.Passed)
+                if (Passed)
                 {
                     Trace.TestCase.exception(e, "Cleanup threw an exception. Make sure you are using ICWS APIs to do cleanup.");
                 }
@@ -125,6 +139,5 @@
                 }
             }
         }
-        #endregion
     }
 }

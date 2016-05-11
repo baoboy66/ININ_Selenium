@@ -3,30 +3,21 @@
     using System;
     using System.Globalization;
     using ININ.Testing.Automation.Core;
-    using ININ.Testing.Automation.Core.Configuration;
     using ININ.Testing.Automation.Core.SeleniumAPI;
     using ININ.Testing.Automation.Core.Utilities;
-    using ININ.Testing.Automation.Lib.Common;
+    using ININ.Testing.Automation.Lib.Client.Queues.MyInteractions;
+    using ININ.Testing.Automation.Lib.Common.LogonForm;
     using ININ.Testing.Automation.Lib.ResourceManager;
     using ININ.Testing.Automation.ManagedICWS;
+    using ININ.Testing.Automation.ManagedICWS.Configuration.People;
     using ININ.Testing.Automation.Tcdb;
     using Xunit;
-    using StaleElementReferenceException = OpenQA.Selenium.StaleElementReferenceException;
 
     /// <summary>
     ///     TC33871 - MaximumHttpSessions Server Parameter
     /// </summary>
     public class TC33871 : ClientTestCase
     {
-        #region Constructors and Destructors
-        public TC33871()
-        {
-            this.TSNum = "2047";
-            this.TCNum = "33871.2";
-        }
-        #endregion
-
-        #region  Constants and Fields
         /// <summary>
         ///     Expected error message when Session Manager is not accepting new HTTP connections.
         /// </summary>
@@ -38,40 +29,45 @@
         private const string _SERVER_PARAMETER_HTTP_SESSIONS = "MaximumHttpSessions";
 
         /// <summary>
-        ///     Object used to wait for specific conditions on various objects
+        ///     Logon page object
         /// </summary>
-        private WebDriverBaseWait _waiter;
-        #endregion
+        private LogonForm _logon;
 
-        #region Public Methods and Operators
+        public TC33871()
+        {
+            TSNum = "2047";
+            TCNum = "33871.2";
+        }
+
         public override void Run()
         {
             using (Trace.TestCase.scope())
             {
-                using (this.Rm = ResourceManagerRuntime.AllocateResources(2, 2))
+                using (Rm = ResourceManagerRuntime.AllocateResources(2, 2))
                 {
                     try
                     {
                         #region Pre Run Setup
                         using (Trace.TestCase.scope("Pre Run Setup"))
                         {
-                            // Add drivers
-                            this.Drivers = WebDriverManager.Instance.AddDriver(this.Rm.Users.Count);
+                            TraceTrue(() =>
+                            {
+                                // Log User1 on
+                                // Set roles
+                                foreach (var user in Rm.Users)
+                                {
+                                    Users.SetRole(user, _DEFAULT_ROLE);
+                                    Status.Set(user, "Available");
+                                }
+                                // Add drivers
+                                Drivers = WebDriverManager.Instance.AddDriver(Rm.Users.Count);
+                                WebDriverManager.Instance.SwitchBrowser(Drivers[0]);
+                                WaitFor(() => UserLogon(Rm.Users[0], Rm.Stations[0]));
 
-                            this._waiter = new WebDriverBaseWait();
-                            this._waiter.IgnoreExceptionTypes(typeof (StaleElementReferenceException));
-
-                            // Set roles
-                            SetUserDefaultRole(this.Rm.Users);
-
-                            // Set the server parameter to only allow 2 HTTP sessions; 1 for the tests connection and 1 for user1
-                            this.SetServerParameter(_SERVER_PARAMETER_HTTP_SESSIONS, (Core.SessionCount + 1).ToString(CultureInfo.InvariantCulture));
-
-                            // Log User1 on
-                            WebDriverManager.Instance.SwitchBrowser(this.Drivers[0]);
-                            this.UserLogonAndStatusSet(this.Rm.Users[0], this.Rm.Stations[0], this.Drivers[0]);
-
-                            this.TraceTrue(Util.IsLoggedIn(), "Failed to log user 1 on.");
+                                // Set the server parameter to only allow 2 HTTP sessions; 1 for the tests connection and 1 for user1
+                                SetServerParameter(_SERVER_PARAMETER_HTTP_SESSIONS, (Core.SessionCount + 1).ToString(CultureInfo.InvariantCulture));
+                                return true;
+                            }, "Pre run setup failed.");
                         }
                         #endregion
 
@@ -79,11 +75,25 @@
                         using (Trace.TestCase.scope("Step 1: Navigate to the Interaction Connect logon page and attempt to log in User2."))
                         {
                             //Step 1 Verify: An error message is seen indicating that the session manager is currently not accepting connections.  User1\'s logon session is not affected in any way.
+                            TraceTrue(() =>
+                            {
+                                WebDriverManager.Instance.SwitchBrowser(Drivers[1]);
+                                _logon = new LogonForm();
+                                _logon.GoTo();
+                                var serverForm = new ServerForm();
+                                if (WaitFor(() => serverForm.Displayed))
+                                {
+                                    serverForm.Set(IcServer).Submit();
+                                }
 
-                            // Attempt to log user2 on
-                            WebDriverManager.Instance.SwitchBrowser(this.Drivers[1]);
-                            Logon.DoLogon(this.Rm.Users[1], this.UserPassword, GlobalConfiguration.Instance.IcServerConfiguration.ServerName, StationType.Workstation.ToString(), this.Rm.Stations[1], false, false, "", false, false /* shouldSetStation should be false since it should show the error message before the station set step. */);
-                            this.TraceTrue(() => this._waiter.Until(d => Logon.Get().IcAuthErrorMessageLabel.Text.Equals(_ERROR_MSG, StringComparison.OrdinalIgnoreCase)), "Error message was wrong or was not displayed.");
+                                // Set and submit auth form
+                                var authForm = new AuthForm();
+                                if (WaitFor(() => authForm.Displayed))
+                                {
+                                    authForm.Set(Rm.Users[1], UserPassword).LogOn();
+                                }
+                                return WaitFor(() => !string.IsNullOrWhiteSpace(authForm.Error) && authForm.Error.Equals(_ERROR_MSG));
+                            }, "The error message was not presented.");
                         }
                         #endregion
 
@@ -94,7 +104,7 @@
 
                             // Reset the server parameter for max HTTP sessions.
                             // This would ideally be a DELETE, but that ICWS API has not been implemented.
-                            this.SetServerParameter(_SERVER_PARAMETER_HTTP_SESSIONS, "");
+                            SetServerParameter(_SERVER_PARAMETER_HTTP_SESSIONS, "");
                         }
                         #endregion
 
@@ -102,29 +112,45 @@
                         using (Trace.TestCase.scope("Step 3: Attempt to log User2 into Interaction Connect again."))
                         {
                             //Step 3 Verify: Login is successful.
-                            Logon.GoToLogon();
-                            Logon.DoLogon(this.Rm.Users[1], this.UserPassword, GlobalConfiguration.Instance.IcServerConfiguration.ServerName, StationType.Workstation.ToString(), this.Rm.Stations[1]);
-                            this.TraceTrue(Util.IsLoggedIn(), "Failed to log user2 on.");
+                            TraceTrue(() =>
+                            {
+                                _logon.GoTo();
+
+                                // Set and submit auth form
+                                var authForm = new AuthForm();
+                                if (WaitFor(() => authForm.Displayed))
+                                {
+                                    authForm.Set(Rm.Users[1], UserPassword).LogOn();
+                                }
+                                // Set and submit station form
+                                var station = new StationForm();
+                                if (WaitFor(() => station.Displayed))
+                                {
+                                    station.Set(Rm.Stations[1]).Submit();
+                                }
+                                var interaction = new MyInteractionsView();
+                                return WaitFor(() => interaction.Displayed);
+                            }, "Step 3 - Failed to log user2 on.");
                         }
                         #endregion
 
-                        this.Passed = true;
+                        Passed = true;
                     }
                     catch (KnownScrException exception)
                     {
                         Graphics.TakeScreenshot();
-                        this.TraceTrue(
+                        TraceTrue(
                             false,
                             "Failed due to known SCR: " + exception.SCR + ". SCR Description: " + exception.Message,
                             exception.SCR);
-                        this.Passed = false;
+                        Passed = false;
                         throw;
                     }
                     catch (Exception e)
                     {
                         Graphics.TakeScreenshot();
                         Trace.TestCase.exception(e);
-                        this.Passed = false;
+                        Passed = false;
                         throw;
                     }
                     finally
@@ -132,16 +158,16 @@
                         // Perform an HTML Dump into i3trace.
                         Trace.TestCase.always("Html dump: \n{}", WebDriverManager.Instance.HtmlDump);
 
-                        this.Attributes.Add(TestCaseAttribute.WebBrowser_Desktop, WebDriverManager.Instance.GetBrowserVersion());
-                        TCDBResults.SendResultsToXml(this.TCNum, this.Passed, this.SCRs, this.Stopwatch.Elapsed.TotalSeconds, this.Attributes);
-                        TCDBResults.SubmitResult(this.TCNum, this.Passed, this.SCRs, attributes: this.Attributes);
+                        Attributes.Add(TestCaseAttribute.WebBrowser_Desktop, WebDriverManager.Instance.GetBrowserVersion());
+                        TCDBResults.SendResultsToXml(TCNum, Passed, SCRs, Stopwatch.Elapsed.TotalSeconds, Attributes);
+                        TCDBResults.SubmitResult(TCNum, Passed, SCRs, attributes: Attributes);
 
                         #region Cleanup
                         using (Trace.TestCase.scope("Post Run Clean Up"))
                         {
                             // Reset the server parameter for max HTTP sessions.
                             // This would ideally be a DELETE, but that ICWS API has not been implemented.
-                            this.SetServerParameter(_SERVER_PARAMETER_HTTP_SESSIONS, "");
+                            SetServerParameter(_SERVER_PARAMETER_HTTP_SESSIONS, "");
                         }
                         #endregion
                     }
@@ -157,11 +183,11 @@
         {
             try
             {
-                this.Run();
+                Run();
             }
             catch (Exception e)
             {
-                if (this.Passed)
+                if (Passed)
                 {
                     Trace.TestCase.exception(e, "Cleanup threw an exception. Make sure you are using ICWS APIs to do cleanup.");
                 }
@@ -172,6 +198,5 @@
                 }
             }
         }
-        #endregion
     }
 }

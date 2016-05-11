@@ -18,9 +18,9 @@
     /// </summary>
     public class TC36657 : ClientTestCase
     {
-        private LogonForm _logon;
         private AuthForm _authForm;
         private MyInteractionsView _interactionsView;
+        private LogonForm _logon;
 
         public TC36657()
         {

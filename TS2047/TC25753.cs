@@ -5,6 +5,7 @@
     using ININ.Testing.Automation.Core.SeleniumAPI;
     using ININ.Testing.Automation.Core.Utilities;
     using ININ.Testing.Automation.Lib.Common;
+    using ININ.Testing.Automation.Lib.Common.LogonForm;
     using ININ.Testing.Automation.Tcdb;
     using Xunit;
 
@@ -13,15 +14,6 @@
     /// </summary>
     public class TC25753 : ClientTestCase
     {
-        #region Constructors and Destructors
-        public TC25753()
-        {
-            this.TSNum = "2047";
-            this.TCNum = "25753.1";
-        }
-        #endregion
-
-        #region  Constants and Fields
         /// <summary>
         ///     The expected message displayed when javascript is disabled
         /// </summary>
@@ -31,9 +23,13 @@
         ///     The filename of the expected image file for the logo
         /// </summary>
         private const string _EXPECTED_LOGO = "i3logo-horizontal-black.jpg";
-        #endregion
 
-        #region Public Methods and Operators
+        public TC25753()
+        {
+            TSNum = "2047";
+            TCNum = "25753.1";
+        }
+
         public override void Run()
         {
             using (Trace.TestCase.scope())
@@ -43,7 +39,12 @@
                     #region Pre Run Setup
                     using (Trace.TestCase.scope("Pre Run Setup"))
                     {
-                        this.Drivers = WebDriverManager.Instance.AddDriver(1);
+                        TraceTrue(() =>
+                        {
+                            // get driver
+                            Drivers = WebDriverManager.Instance.AddDriver(1);
+                            return true;
+                        }, "Pre run setup failed.");
                     }
                     #endregion
 
@@ -51,33 +52,36 @@
                     using (Trace.TestCase.scope("Step 1: With JavaScript disabled, launch the Basl Web Client."))
                     {
                         // Step 1 Verify: The user is taken to a page containing the Interactive Intelligence logo with the message \'Please enable JavaScript in your web browser.\'
-                        Logon.GoToLogon();
-
                         // Note: Due to the fact that disabling javascript is not actually supported in Chrome and IE about
                         // the best we can do is check for the existence and expected contents of the <noscript> element.
-                        this.TraceTrue(NoScript.Get().NoScriptElement.WaitUntil(WaitUntilType.Exists), "The noscript element was not found.");
-                        this.TraceTrue(NoScript.Get().NoScriptElement.Html.Contains(_EXPECTED_LOGO), "The noscript logo was not found.");
-                        this.TraceTrue(NoScript.Get().NoScriptElement.Html.Contains(_EXPECTED_ALERT), "The noscript alert was not found.");
+                        TraceTrue(() =>
+                        {
+                            var logon = new LogonForm();
+                            logon.GoTo();
+                            return WaitFor(() => NoScript.Get().NoScriptElement.WaitUntil(WaitUntilType.Exists));
+                        }, "The noscript element was not found.");
+                        TraceTrue(() => WaitFor(() => NoScript.Get().NoScriptElement.Html.Contains(_EXPECTED_LOGO)), "The noscript logo was not found.");
+                        TraceTrue(() => WaitFor(() => NoScript.Get().NoScriptElement.Html.Contains(_EXPECTED_ALERT)), "The noscript alert was not found.");
                     }
                     #endregion
 
-                    this.Passed = true;
+                    Passed = true;
                 }
                 catch (KnownScrException exception)
                 {
                     Graphics.TakeScreenshot();
-                    this.TraceTrue(
+                    TraceTrue(
                         false,
                         "Failed due to known SCR: " + exception.SCR + ". SCR Description: " + exception.Message,
                         exception.SCR);
-                    this.Passed = false;
+                    Passed = false;
                     throw;
                 }
                 catch (Exception e)
                 {
                     Graphics.TakeScreenshot();
                     Trace.TestCase.exception(e);
-                    this.Passed = false;
+                    Passed = false;
                     throw;
                 }
                 finally
@@ -85,9 +89,9 @@
                     // Perform an HTML Dump into i3trace.
                     Trace.TestCase.always("Html dump: \n{}", WebDriverManager.Instance.HtmlDump);
 
-                    this.Attributes.Add(TestCaseAttribute.WebBrowser_Desktop, WebDriverManager.Instance.GetBrowserVersion());
-                    TCDBResults.SendResultsToXml(this.TCNum, this.Passed, this.SCRs, this.Stopwatch.Elapsed.TotalSeconds, this.Attributes);
-                    TCDBResults.SubmitResult(this.TCNum, this.Passed, this.SCRs, attributes: this.Attributes);
+                    Attributes.Add(TestCaseAttribute.WebBrowser_Desktop, WebDriverManager.Instance.GetBrowserVersion());
+                    TCDBResults.SendResultsToXml(TCNum, Passed, SCRs, Stopwatch.Elapsed.TotalSeconds, Attributes);
+                    TCDBResults.SubmitResult(TCNum, Passed, SCRs, attributes: Attributes);
 
                     #region Cleanup
                     using (Trace.TestCase.scope("Post Run Clean Up"))
@@ -108,11 +112,11 @@
         {
             try
             {
-                this.Run();
+                Run();
             }
             catch (Exception e)
             {
-                if (this.Passed)
+                if (Passed)
                 {
                     Trace.TestCase.exception(e, "Cleanup threw an exception. Make sure you are using ICWS APIs to do cleanup.");
                 }
@@ -123,6 +127,5 @@
                 }
             }
         }
-        #endregion
     }
 }

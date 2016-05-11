@@ -17,11 +17,8 @@
     /// </summary>
     public class TC36636 : ClientTestCase
     {
-        /// <summary>
-        ///     Logon page object
-        /// </summary>
-        private LogonForm _logon;
         private AuthForm _authForm;
+        private LogonForm _logon;
         private StationForm _station;
 
         public TC36636()
@@ -62,16 +59,20 @@
                             {
                                 _logon = new LogonForm();
                                 _logon.GoTo();
-                                
+
                                 // set and submit server form
                                 var serverForm = new ServerForm();
-                                if (WaitFor(() => serverForm.Displayed)) { }
+                                if (WaitFor(() => serverForm.Displayed))
+                                {
                                     serverForm.Set(IcServer).Submit();
+                                }
 
                                 // Set and submit auth form
                                 _authForm = new AuthForm();
                                 if (WaitFor(() => _authForm.Displayed))
+                                {
                                     _authForm.Set(Rm.Users[0], UserPassword).LogOn();
+                                }
 
                                 _station = new StationForm();
                                 return WaitFor(() => _station.Displayed);

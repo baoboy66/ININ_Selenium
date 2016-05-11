@@ -64,7 +64,7 @@
                     using (Trace.TestCase.scope("Step 1: Navigate to the Web Client logon page."))
                     {
                         //Step 1 Verify: The user under test is denied access with an error message.
-                        //Comment: \'None of the server\'s accepted logon types are supported by this application. You will not be able to log on. Check your server selection again, and contact your administrator if problems persist.
+                        //Comment: None of the server's accepted logon types are supported by this application. You will not be able to log on. Check your server selection again, and contact your administrator if problems persist.
                         TraceTrue(() =>
                         {
                             _logon = new LogonForm();
